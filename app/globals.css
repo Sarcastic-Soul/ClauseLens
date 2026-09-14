@@ -1,26 +1,82 @@
 @import "tailwindcss";
 
+/*
+  One palette, defined once. Risk colours are the only saturated hues in the
+  interface, so a red badge always means the same thing wherever it appears.
+  Every risk indicator also carries a text label — colour is never the only
+  signal (see ClauseCard).
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --background: #fbfaf8;
+  --surface: #ffffff;
+  --border: #e5e2dd;
+  --foreground: #1c1a17;
+  --muted: #6b6560;
+  --accent: #1d4ed8;
+  --accent-soft: #eff4ff;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --risk-high: #b42318;
+  --risk-high-soft: #fef3f2;
+  --risk-medium: #b54708;
+  --risk-medium-soft: #fffaeb;
+  --risk-low: #475467;
+  --risk-low-soft: #f2f4f7;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #131211;
+    --surface: #1b1a18;
+    --border: #322f2c;
+    --foreground: #f2efea;
+    --muted: #a09a93;
+    --accent: #7ba2ff;
+    --accent-soft: #1b2440;
+
+    --risk-high: #fda29b;
+    --risk-high-soft: #2d1614;
+    --risk-medium: #fec84b;
+    --risk-medium-soft: #2b1f0c;
+    --risk-low: #cecac4;
+    --risk-low-soft: #26241f;
   }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-risk-high: var(--risk-high);
+  --color-risk-high-soft: var(--risk-high-soft);
+  --color-risk-medium: var(--risk-medium);
+  --color-risk-medium-soft: var(--risk-medium-soft);
+  --color-risk-low: var(--risk-low);
+  --color-risk-low-soft: var(--risk-low-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Focus must stay visible for keyboard users; never remove without replacing. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

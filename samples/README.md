@@ -11,7 +11,8 @@ repository.
 | `freelance-services-agreement.pdf` | Contractor agreement, Mumbai | Unlimited revisions, 60-day payment terms, uncapped indemnity, portfolio use blocked |
 | `not-a-contract-recipe.pdf` | A recipe | Edge case: the analyser must report `unrecognised` rather than inventing clauses |
 
-Regenerate them from `samples/src/*.html` with:
+The PDFs are generated into `public/samples/` so the deployed app can offer them as
+one-click examples. Regenerate them from the HTML sources in this directory with:
 
 ```bash
 ./scripts/build-samples.sh   # requires LibreOffice
