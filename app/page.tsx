@@ -3,9 +3,9 @@
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
 
-import { ClauseCard } from '@/components/ClauseCard'
+import { AnalysisView } from '@/components/AnalysisView'
 import { Disclaimer } from '@/components/Disclaimer'
-import { RiskSummary } from '@/components/RiskSummary'
+import { FeedbackWidget } from '@/components/FeedbackWidget'
 import { UploadPane } from '@/components/UploadPane'
 import { analyzeDocument, ApiError, type AnalyzeResult } from '@/lib/api-client'
 
@@ -42,16 +42,10 @@ export default function Home() {
 
       <div className="mt-8 space-y-6">
         <Disclaimer />
-
         <UploadPane onSelect={analyse} busy={status === 'analysing'} />
 
         <div aria-live="polite" aria-atomic="true">
-          {status === 'analysing' && (
-            <p className="flex items-center gap-2 text-sm text-muted">
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              Reading the document and extracting clauses…
-            </p>
-          )}
+          {status === 'analysing' && <AnalysingNotice />}
           {status === 'failed' && error && (
             <p role="alert" className="text-sm text-risk-high">
               {error}
@@ -61,25 +55,30 @@ export default function Home() {
       </div>
 
       {status === 'ready' && result && (
-        <main className="mt-10 space-y-8 border-t border-border pt-8">
-          <RiskSummary analysis={result.analysis} />
+        <main className="mt-10 border-t border-border pt-8">
+          <AnalysisView analysis={result.analysis} shareId={result.shareId} />
 
-          {result.analysis.clauses.length > 0 && (
-            <section aria-labelledby="clauses-heading">
-              <h2 id="clauses-heading" className="text-lg font-medium">
-                Clauses
-              </h2>
-              <ul className="mt-4 space-y-3">
-                {result.analysis.clauses.map((clause) => (
-                  <li key={clause.id}>
-                    <ClauseCard clause={clause} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          <div className="mt-12 border-t border-border pt-8">
+            <FeedbackWidget />
+          </div>
         </main>
       )}
+    </div>
+  )
+}
+
+/**
+ * A full document takes the better part of a minute to read. Saying what is
+ * happening, and roughly how long it takes, is more honest than a bare spinner.
+ */
+function AnalysingNotice() {
+  return (
+    <div className="flex items-start gap-2 text-sm text-muted">
+      <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" aria-hidden="true" />
+      <p>
+        Reading the document and extracting clauses. This usually takes 20 to 60 seconds — every
+        clause is quoted from the original, so nothing is skimmed.
+      </p>
     </div>
   )
 }

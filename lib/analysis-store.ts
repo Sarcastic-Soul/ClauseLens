@@ -1,8 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
+import { toClauseContext } from '@/lib/clause-context'
 import { db, schema } from '@/lib/db'
-import type { Analysis, Clause } from '@/lib/schema'
+import { AppError, ERROR_CODES } from '@/lib/errors'
+import type { Analysis } from '@/lib/schema'
 
 /**
  * Saving and loading analyses. Every function here tolerates the database being
@@ -12,17 +14,25 @@ import type { Analysis, Clause } from '@/lib/schema'
 
 const SHARE_ID_LENGTH = 16
 
+/**
+ * Neon suspends an idle compute after five minutes on the free plan, and the
+ * query that wakes it can fail before the connection is ready. One retry turns
+ * that from a visible error into a slightly slower page load.
+ */
+async function withRetry<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  } catch (first) {
+    console.warn('[db] first attempt failed, retrying', first)
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    return operation()
+  }
+}
+
 export type StoredAnalysis = Analysis & { shareId: string; fileName: string }
 
 export function newShareId(): string {
   return nanoid(SHARE_ID_LENGTH)
-}
-
-/** Serialises clauses into the grounding context sent with follow-up questions. */
-export function toClauseContext(clauses: Clause[]): string {
-  return clauses
-    .map((clause) => `[${clause.id}] ${clause.heading}\n"${clause.sourceQuote}"\n${clause.plainLanguage}`)
-    .join('\n\n')
 }
 
 /**
@@ -40,8 +50,9 @@ export async function saveAnalysis(input: {
   const shareId = newShareId()
 
   try {
-    const [row] = await database
-      .insert(schema.analyses)
+    const [row] = await withRetry(() =>
+      database
+        .insert(schema.analyses)
       .values({
         shareId,
         fileName: input.fileName,
@@ -51,7 +62,8 @@ export async function saveAnalysis(input: {
         clauseContext: toClauseContext(input.analysis.clauses),
         modelId: input.modelId,
       })
-      .returning({ id: schema.analyses.id })
+        .returning({ id: schema.analyses.id }),
+    )
 
     if (input.analysis.clauses.length > 0) {
       await database.insert(schema.clauses).values(
@@ -75,23 +87,40 @@ export async function saveAnalysis(input: {
   }
 }
 
-/** Loads a shared analysis, or null when it does not exist or cannot be read. */
+/**
+ * Loads a shared analysis. Returns null when the id is unknown; throws a typed
+ * `PERSISTENCE_UNAVAILABLE` when the database itself cannot be reached, so a
+ * missing link and a broken database do not look the same to the caller.
+ */
 export async function loadAnalysis(shareId: string): Promise<StoredAnalysis | null> {
   const database = db()
   if (!database) return null
 
-  const [analysis] = await database
-    .select()
-    .from(schema.analyses)
-    .where(eq(schema.analyses.shareId, shareId))
-    .limit(1)
+  try {
+    return await read(database, shareId)
+  } catch (error) {
+    console.error('[loadAnalysis]', error)
+    throw new AppError(ERROR_CODES.PERSISTENCE_UNAVAILABLE, 'Could not read the saved analysis')
+  }
+}
+
+async function read(
+  database: NonNullable<ReturnType<typeof db>>,
+  shareId: string,
+): Promise<StoredAnalysis | null> {
+  const [analysis] = await withRetry(() =>
+    database
+      .select()
+      .from(schema.analyses)
+      .where(eq(schema.analyses.shareId, shareId))
+      .limit(1),
+  )
 
   if (!analysis) return null
 
-  const rows = await database
-    .select()
-    .from(schema.clauses)
-    .where(eq(schema.clauses.analysisId, analysis.id))
+  const rows = await withRetry(() =>
+    database.select().from(schema.clauses).where(eq(schema.clauses.analysisId, analysis.id)),
+  )
 
   return {
     shareId: analysis.shareId,

@@ -1,36 +1,168 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClauseLens
 
-## Getting Started
+**Understand what you are signing.** Upload a rental agreement, offer letter or contract and get
+it back clause by clause — in plain language, with the terms that could cost you flagged, every
+explanation quoted from the original, and the questions worth putting to a lawyer.
 
-First, run the development server:
+Built for **PromptWars: Virtual (Exclusive Edition)** against the problem statement
+**AI for Legal Assistance & Access**:
+
+> Legal information can often be complex, difficult to understand, and challenging to navigate
+> without professional assistance. Build a GenAI-powered solution that makes legal information and
+> basic legal assistance more accessible by helping users understand, compare, and navigate legal
+> documents and information.
+
+**This is not legal advice.** ClauseLens explains what a document says and who it binds. It never
+states what you should legally do, and the boundary is enforced in the prompts themselves, not only
+in a banner.
+
+---
+
+## How it addresses the problem statement
+
+| Problem statement use case | Feature | Where |
+|---|---|---|
+| Simplifying complex legal documents | Every clause rewritten in everyday language | `lib/prompts.ts` → `ANALYZE_SYSTEM_PROMPT`, `app/api/analyze/route.ts` |
+| Highlighting important clauses, obligations, risks | Risk level, one-line reason, and which party is bound, per clause | `components/ClauseCard.tsx`, `components/RiskSummary.tsx` |
+| Answering questions based on provided documents | Q&A grounded only in the uploaded document, with clause citations | `app/api/ask/route.ts`, `components/AskBox.tsx` |
+| Helping users understand their options and next steps | Top-five "before you sign" points | `lib/schema.ts` → `keyPoints` |
+| Helping users prepare questions for a legal professional | Generated question checklist from the riskiest clauses | `app/api/checklist/route.ts`, `components/ChecklistPanel.tsx` |
+| Generating summaries, checklists, actionable outputs | Document summary, risk counts, shareable permalink | `components/AnalysisView.tsx` |
+
+The documents targeted are Indian — leave and licence agreements, offer letters, contractor
+agreements. The prompts name those conventions explicitly (lock-in separate from notice period,
+deposits quoted in months of rent, lakh and crore digit grouping, TDS and GST), because generic
+contract vocabulary misses them.
+
+## GenAI architecture
+
+All generative work runs on the **Google Gemini API** (`@google/genai`). There are four call sites,
+and every one of them lives behind `lib/gemini.ts` — no route talks to the SDK directly.
+
+| # | Where | Trigger | Model | Mode | Output |
+|---|---|---|---|---|---|
+| 1 | `app/api/analyze/route.ts` | A document is uploaded | `GEMINI_MODEL_ANALYZE` | JSON mode, PDF sent inline | Clause array: verbatim quote, plain-language rewrite, risk level, risk reason, obligated party |
+| 2 | `app/api/analyze/route.ts` (same call) | A document is uploaded | `GEMINI_MODEL_ANALYZE` | JSON mode | Document type, summary, top-five key points |
+| 3 | `app/api/ask/route.ts` | A question is asked | `GEMINI_MODEL_QA` | Streamed text | Grounded answer with inline `[c-4]` citations, or an explicit "not in this document" |
+| 4 | `app/api/checklist/route.ts` | "Prepare my questions" | `GEMINI_MODEL_ANALYZE` | JSON mode | Questions to ask a legal professional, ordered by what is at stake |
+
+Notes on the integration:
+
+- **Gemini reads the PDF natively.** Nothing in this repository parses a PDF. Document layout,
+  headings and tables survive, and there is no extraction dependency to ship.
+- **Structured calls use JSON mode**, with the response schema derived from the same Zod schema that
+  validates it on the way back (`lib/schema.ts` → `toModelSchema`). A response that does not match
+  is a failure, never a half-populated object handed to the UI.
+- **Model ids are configuration, not code**, and each may be a comma-separated chain. The newest
+  Flash models return `503 UNAVAILABLE` on the free tier when demand spikes, so a request falls
+  through to the next model rather than failing.
+- **Q&A streams**, which rules out JSON mode for that call. The structure still needed — answerable
+  or not, and which clauses were cited — travels inside the text and is parsed by
+  `lib/answer-format.ts`, which is pure and tolerates partial input.
+
+## Grounding, and why answers can be checked
+
+Every clause carries a `sourceQuote` copied verbatim from the document; a clause the model cannot
+quote does not appear. Answers cite clause ids, and each citation in the UI is a link to the clause
+it came from. Clause ids are assigned by the application after extraction, never by the model, so a
+citation can never point at an id the model invented.
+
+Uploaded documents are treated as untrusted input. Document text is fenced in a delimited block and
+the model is instructed to treat everything inside as data — a contract containing "ignore your
+instructions" is a realistic case for this problem statement, not a hypothetical one.
+
+## Running locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+cp .env.example .env     # then fill in GEMINI_API_KEY and DATABASE_URL
+pnpm db:migrate
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- `GEMINI_API_KEY` — from [Google AI Studio](https://aistudio.google.com/apikey).
+- `DATABASE_URL` — a [Neon](https://console.neon.tech) Postgres connection string. **Optional**:
+  without it the app still analyses documents, it just cannot save or share them.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Sample documents are in `public/samples/` and are offered as one-click examples in the UI, so the
+app can be tried without finding a contract first. They are synthetic — see `samples/README.md`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm test        # unit tests
+pnpm typecheck
+pnpm lint
+```
 
-## Learn More
+## Architecture
 
-To learn more about Next.js, take a look at the following resources:
+```
+Browser ──► Next.js route handlers ──► Gemini API
+                     │
+                     └──────────────► Neon Postgres
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+One Next.js application on Vercel. No separate backend, no queue, no container.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Layer | Choice | Why |
+|---|---|---|
+| Framework | Next.js 16, App Router, TypeScript | One repository, one deployment, route handlers beside the UI |
+| Model | Google Gemini via `@google/genai` | Native PDF input, JSON mode, free tier |
+| Database | Neon Postgres + Drizzle | HTTP driver over `fetch`, so serverless invocations hold no connections and there is no pool to exhaust |
+| UI | Tailwind CSS 4 | No component library to ship |
+| Validation | Zod | One schema validates requests, derives the model schema, and types the UI |
 
-## Deploy on Vercel
+**The database is never on the critical path for a fresh upload.** Analysis is returned first and
+saved afterwards, so a database failure costs the share link, not the result on screen.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**The uploaded PDF is never stored.** Only the extracted analysis and the clause text needed to
+ground follow-up questions are persisted.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Layout
+
+```
+app/
+  api/analyze/      clause extraction and summary      (GenAI 1, 2)
+  api/ask/          grounded question answering        (GenAI 3)
+  api/checklist/    questions for a legal professional (GenAI 4)
+  api/a/[shareId]/  load a saved analysis
+  api/feedback/     pilot feedback
+  a/[shareId]/      shared analysis page
+lib/
+  gemini.ts         the only module that calls the model
+  prompts.ts        every instruction sent to the model
+  schema.ts         Zod schemas: requests, model output, domain types
+  answer-format.ts  citation and refusal parsing (pure)
+  clause-context.ts grounding block shared by client and server (pure)
+  analysis-store.ts persistence, tolerant of an absent database
+  rate-limit.ts     per-IP windows on the model-calling routes
+  errors.ts         typed failures mapped to safe user-facing messages
+```
+
+## Reliability and limits
+
+| Concern | Handling |
+|---|---|
+| Newest Flash models return 503 on the free tier | Comma-separated model chain with failover |
+| Neon suspends idle computes after 5 minutes | One automatic retry on the first query |
+| Public endpoints proxying a metered API | Per-IP rate limits on every model-calling route |
+| Vercel caps request bodies at 4.5 MB | 4 MB upload cap, enforced in the browser and again on the server |
+| A renamed file claiming to be a PDF | `%PDF-` magic bytes checked server-side |
+| A document that is not a contract | Reported as `unrecognised` with no clauses invented |
+| A question the document cannot answer | Answered as "not in this document" rather than guessed |
+| Model returns malformed JSON | Schema validation fails the request with a clear message |
+
+Analysis takes roughly 20 to 60 seconds for a multi-page contract, because every clause is quoted
+from the original rather than summarised loosely.
+
+### Local networks without IPv6
+
+Neon's hostnames resolve to IPv6 and IPv4. On a network with no working IPv6 route the first
+connection fails with a bare `fetch failed`, which reads like a credentials problem and is not.
+`instrumentation.ts` prefers IPv4 in development for that reason.
+
+## Accessibility
+
+Clause cards are native `<details>` elements, so keyboard operation and screen-reader semantics are
+the browser's rather than hand-rolled. Risk is always shown as a word — "High risk" — alongside its
+colour, never colour alone. Streaming answers sit in an `aria-live` region, focus outlines are never
+removed, and the interface respects `prefers-reduced-motion` and the system colour scheme.

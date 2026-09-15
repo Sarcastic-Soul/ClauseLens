@@ -69,6 +69,11 @@ export const answerSchema = z.object({
 
 export type Answer = z.infer<typeof answerSchema>
 
+export const checklistRequestSchema = z.object({
+  docType: z.string().trim().min(1).max(200),
+  clauseContext: z.string().trim().min(1).max(200_000),
+})
+
 export const checklistSchema = z.object({
   items: z
     .array(
@@ -83,15 +88,29 @@ export const checklistSchema = z.object({
 
 export type Checklist = z.infer<typeof checklistSchema>
 
-/** Request bodies. */
-export const askRequestSchema = z.object({
-  question: z.string().trim().min(3).max(500),
-  analysisId: z.string().trim().min(1).max(64),
+export const feedbackRequestSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().trim().max(2000).optional(),
 })
 
 export const shareIdSchema = z
   .string()
   .regex(/^[A-Za-z0-9_-]{12,32}$/, 'Malformed share id')
+
+/**
+ * A question carries its own clause context when the analysis was never saved,
+ * or a share id when it was. Exactly one is required, so an unsaved analysis
+ * still supports follow-up questions.
+ */
+export const askRequestSchema = z
+  .object({
+    question: z.string().trim().min(3).max(500),
+    clauseContext: z.string().max(200_000).optional(),
+    shareId: shareIdSchema.optional(),
+  })
+  .refine((body) => Boolean(body.clauseContext ?? body.shareId), {
+    message: 'Either clauseContext or shareId is required',
+  })
 
 /**
  * Gemini accepts standard JSON Schema, but rejects the `$schema` annotation

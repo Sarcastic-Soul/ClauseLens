@@ -2,7 +2,7 @@ import { GoogleGenAI } from '@google/genai'
 import type { z } from 'zod'
 
 import { env } from '@/lib/env'
-import { AppError, ERROR_CODES } from '@/lib/errors'
+import { AppError, ERROR_CODES, type ErrorCode } from '@/lib/errors'
 import { toModelSchema } from '@/lib/schema'
 
 /**
@@ -21,9 +21,59 @@ function genai(): GoogleGenAI {
 /** Extraction and grounded answering are lookup tasks, not creative ones. */
 const TEMPERATURE = 0.2
 
+/**
+ * A model id env var may name several models, comma separated. They are tried
+ * in order, and a model that answers 503 UNAVAILABLE — which the newest Flash
+ * models do routinely on the free tier when demand spikes — falls through to
+ * the next one rather than failing the request.
+ */
+export function parseModelChain(spec: string): string[] {
+  const models = spec
+    .split(',')
+    .map((model) => model.trim())
+    .filter(Boolean)
+
+  if (models.length === 0) throw new Error('No model configured')
+  return models
+}
+
+/** Codes worth trying a different model for. A bad request would fail identically. */
+const FAILOVER_CODES: ErrorCode[] = [
+  ERROR_CODES.MODEL_UNAVAILABLE,
+  ERROR_CODES.MODEL_RATE_LIMITED,
+]
+
+/**
+ * Runs `attempt` against each model in the chain until one succeeds. The error
+ * from the last model is what surfaces, so the user sees a real failure rather
+ * than a generic one.
+ */
+async function withModelFailover<T>(
+  spec: string,
+  attempt: (model: string) => Promise<T>,
+): Promise<T> {
+  const models = parseModelChain(spec)
+  let lastError: unknown
+
+  for (const model of models) {
+    try {
+      return await attempt(model)
+    } catch (error) {
+      lastError = error
+      const failedOver =
+        error instanceof AppError && FAILOVER_CODES.includes(error.code)
+      if (!failedOver) throw error
+      console.warn(`[gemini] ${model} unavailable, trying next model`)
+    }
+  }
+
+  throw lastError
+}
+
 export type DocumentPart = { mimeType: string; base64: string }
 
 type StructuredCall<T extends z.ZodType> = {
+  /** One model id, or several comma separated to allow failover. */
   model: string
   systemInstruction: string
   prompt: string
@@ -51,17 +101,19 @@ export async function generateStructured<T extends z.ZodType>({
     { text: prompt },
   ]
 
-  const response = await call(() =>
-    genai().models.generateContent({
-      model,
-      contents: [{ role: 'user', parts }],
-      config: {
-        systemInstruction,
-        temperature: TEMPERATURE,
-        responseMimeType: 'application/json',
-        responseJsonSchema: toModelSchema(schema),
-      },
-    }),
+  const response = await withModelFailover(model, (modelId) =>
+    call(() =>
+      genai().models.generateContent({
+        model: modelId,
+        contents: [{ role: 'user', parts }],
+        config: {
+          systemInstruction,
+          temperature: TEMPERATURE,
+          responseMimeType: 'application/json',
+          responseJsonSchema: toModelSchema(schema),
+        },
+      }),
+    ),
   )
 
   const raw = response.text
@@ -98,12 +150,14 @@ export async function* generateTextStream({
   systemInstruction: string
   prompt: string
 }): AsyncGenerator<string> {
-  const stream = await call(() =>
-    genai().models.generateContentStream({
-      model,
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { systemInstruction, temperature: TEMPERATURE },
-    }),
+  const stream = await withModelFailover(model, (modelId) =>
+    call(() =>
+      genai().models.generateContentStream({
+        model: modelId,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: { systemInstruction, temperature: TEMPERATURE },
+      }),
+    ),
   )
 
   for await (const chunk of stream) {

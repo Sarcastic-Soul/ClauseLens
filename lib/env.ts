@@ -9,8 +9,8 @@ import { z } from 'zod'
  */
 const envSchema = z.object({
   GEMINI_API_KEY: z.string().min(1, 'GEMINI_API_KEY is not set'),
-  GEMINI_MODEL_ANALYZE: z.string().min(1).default('gemini-3.6-flash'),
-  GEMINI_MODEL_QA: z.string().min(1).default('gemini-3.5-flash-lite'),
+  GEMINI_MODEL_ANALYZE: z.string().min(1).default('gemini-3.5-flash,gemini-3.5-flash-lite'),
+  GEMINI_MODEL_QA: z.string().min(1).default('gemini-3.5-flash-lite,gemini-3.5-flash'),
   DATABASE_URL: z.string().min(1).optional(),
 })
 
