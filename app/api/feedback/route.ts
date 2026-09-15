@@ -1,5 +1,6 @@
 import { db, schema } from '@/lib/db'
 import { AppError, ERROR_CODES, toErrorResponse } from '@/lib/errors'
+import { assertSameOrigin } from '@/lib/origin-guard'
 import { clientKey, enforceRateLimit } from '@/lib/rate-limit'
 import { feedbackRequestSchema } from '@/lib/schema'
 
@@ -15,6 +16,7 @@ const REQUESTS_PER_MINUTE = 3
  */
 export async function POST(request: Request): Promise<Response> {
   try {
+    assertSameOrigin(request)
     await enforceRateLimit(clientKey(request, 'feedback'), REQUESTS_PER_MINUTE)
 
     const body = await request.json().catch(() => null)

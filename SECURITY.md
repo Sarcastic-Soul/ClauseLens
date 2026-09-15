@@ -4,6 +4,13 @@ ClauseLens takes an untrusted file from an anonymous visitor, sends it to a mete
 model, and publishes the result at a public URL. This document says what that exposes, what the
 code does about it, and what it deliberately does not.
 
+## Reporting a vulnerability
+
+Please report security issues through
+[GitHub Security Advisories](https://github.com/Sarcastic-Soul/ClauseLens/security/advisories/new)
+for this repository rather than opening a public issue. This is a pilot project with no bug bounty,
+but a private report gets a fix before it gets an audience.
+
 ## Trust boundaries
 
 | Boundary | What crosses it | Treated as |
@@ -73,8 +80,10 @@ share page, and it is why questions and answers are not stored — recording wha
 would expose it to the next.
 
 Because unguessability is the whole of the access control, `/a/[shareId]` sets `robots: noindex,
-nofollow`. A link pasted into a public thread would otherwise be crawled, and a contract analysis
-would become searchable by its own contents rather than by the id nobody was supposed to guess.
+nofollow` and `app/robots.ts` disallows `/a/` outright — a well-behaved crawler never requests the
+URL at all, and one that ignores robots.txt still meets the page-level `noindex`. A link pasted into
+a public thread would otherwise be crawled, and a contract analysis would become searchable by its
+own contents rather than by the id nobody was supposed to guess.
 
 ## Response headers
 
@@ -82,27 +91,64 @@ Applied to every route in `next.config.ts`:
 
 | Header | Value | Why |
 |---|---|---|
-| `Content-Security-Policy` | `frame-ancestors 'none'` | The page cannot be framed and passed off as another site |
-| `X-Frame-Options` | `DENY` | The same, for browsers that predate `frame-ancestors` |
+| `Content-Security-Policy` | see below | Restricts every resource type to this origin |
+| `X-Frame-Options` | `DENY` | The same rule as `frame-ancestors`, for browsers that predate it |
 | `X-Content-Type-Options` | `nosniff` | A response is what it declares it is |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | Cross-origin requests carry the origin and never the path, so a share id in the URL is not handed to the next site a visitor clicks through to |
 | `Permissions-Policy` | camera, microphone, geolocation, browsing-topics disabled | Nothing here needs them |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` | Two years, long enough to qualify for the browser preload list — no plaintext request is ever made to this host after the first |
+| `Cross-Origin-Opener-Policy` | `same-origin` | Nothing here opens or is opened by a cross-origin window |
+| `Cross-Origin-Resource-Policy` | `same-origin` | Nothing here is meant to be fetched as a subresource from another origin |
 
-The policy stops at `frame-ancestors` deliberately. A `script-src` worth having needs a nonce
-threaded through the App Router on every request, and a policy loose enough to work without one
-would have to allow the inline script it exists to stop.
+The CSP is `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; img-src 'self'
+data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self';
+frame-src 'none'; frame-ancestors 'none'`. Every directive but one is the strict value: no plugin, no
+frame, no embed, no cross-origin form target, no base tag rewriting relative URLs elsewhere.
+
+`script-src` keeps `'unsafe-inline'` rather than a hash or a nonce. Next.js writes its own
+flight-data hydration script inline on every page it renders, so blocking inline scripts outright
+means blocking the app. A nonce fixes this properly, but it has to be generated in Proxy on every
+request and threaded through `headers()`, and Next.js only applies it correctly to pages that are
+rendered per request — which `/` and `/compare` currently are not, and turning them dynamic to get a
+nonce is a real cost for a project that has no `dangerouslySetInnerHTML` anywhere to exploit an
+inline script through in the first place (see **Injection → XSS** above). `'unsafe-inline'` is the
+accepted trade there; it does not reopen the SQL, prompt, or path-traversal classes this document
+covers, only inline-script injection, which has no sink to reach.
 
 ## Abuse of a metered endpoint
 
 `/api/analyze`, `/api/ask`, `/api/checklist`, `/api/compare` and `/api/feedback` are public and call
 a paid API. Each enforces a per-IP, per-minute limit (`lib/rate-limit.ts`), keyed on
-`x-forwarded-for`.
+`x-forwarded-for`. `/api/a/[shareId]` calls no model but got its own, more generous limit once it was
+noticed it had none at all — cheap for one caller to hit hard, and every hit is a database read.
+
+Each of the five model-calling routes also checks `Sec-Fetch-Site` before doing anything else
+(`lib/origin-guard.ts`): a `cross-site` request is rejected before it reaches the rate limiter or the
+model. Without this, any page on the internet could point a visitor's browser at these endpoints —
+the request needs no cookie and no secret, only a visitor with the page open — and spend this
+deployment's Gemini quota on their behalf. Browsers old enough to omit `Sec-Fetch-Site` fall back to
+comparing `Origin` against `Host`; a request with neither header (a non-browser client) is let
+through unguarded, same as before this check existed, and is still bounded by the rate limit.
 
 The counter is a row in Postgres, not a map in memory. Serverless instances share no memory, so an
 in-process count is enforced once per instance and the real ceiling becomes the configured limit
 multiplied by however many instances happen to be warm. One row per caller, incremented by a single
 atomic upsert, gives every instance the same count: eight simultaneous requests against a limit of
 five are five allowed and three refused, whichever instances they land on.
+
+**The caller identity in that row is an HMAC, not the address itself.** `clientKey` used to write
+`x-forwarded-for` straight into the `rate_limits.key` column and into the detail string of a
+`RATE_LIMITED` `AppError` — both of which land in server logs — which contradicted this document's
+own claim, two sections down, that no visitor identifier is stored. The address is now HMACed with a
+key derived from `GEMINI_API_KEY` via HKDF (same derive-don't-configure approach as
+`ASK_CONTEXT_SECRET` below) before it becomes part of the key, so what is stored and logged is an
+opaque per-route tag: still unique enough to count a caller, not reversible into their IP.
+
+Every call to Gemini also carries an `AbortSignal.timeout` (`lib/gemini.ts`), shorter than the
+route's own `maxDuration`. Without it, a hung upstream request was ended only by the platform killing
+the whole invocation, which burned the entire time budget on one attempt and left no room to fail
+over to the next model in the chain. A timeout turns a hang into an ordinary `MODEL_UNAVAILABLE`,
+which is one of the two codes `withModelFailover` already retries on.
 
 **Grounded endpoints answer only over context this server produced.** `/api/ask` and
 `/api/checklist` need the document's clauses. A saved analysis is addressed by share id and read
@@ -138,8 +184,8 @@ expose the API key.
 - **Comparisons are not stored at all.** They are about a pairing rather than a document, so there
   is nothing to cache and no share link to issue.
 - **Not stored:** the file, the file's bytes, questions, answers, or any identifier for the visitor
-  beyond the rate-limit row, which holds a caller key and a count for sixty seconds and is then
-  overwritten or deleted.
+  beyond the rate-limit row, which holds an HMAC of the caller's address (see **Abuse of a metered
+  endpoint** above) and a count for sixty seconds, then is overwritten or deleted.
 
 ## Error handling
 
@@ -153,3 +199,9 @@ generic `INTERNAL` 500.
 Install scripts are blocked by default and approved one at a time in `pnpm-workspace.yaml`, with a
 comment on each saying why it needs to run. An unreviewed `postinstall` in a transitive dependency
 cannot execute on a build machine without that file changing first.
+
+`.github/workflows/ci.yml` runs lint, typecheck, the test suite and `pnpm audit --audit-level high`
+on every push and pull request, so a high-severity advisory in a dependency fails the build instead
+of shipping quietly. `.github/dependabot.yml` opens a pull request for an outdated dependency or
+GitHub Action on its own schedule, and `.github/workflows/codeql.yml` runs static analysis over the
+TypeScript on every push to `main`, every pull request, and weekly.

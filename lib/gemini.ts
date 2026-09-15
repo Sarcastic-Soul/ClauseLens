@@ -22,6 +22,13 @@ function genai(): GoogleGenAI {
 const TEMPERATURE = 0.2
 
 /**
+ * Bounds a single model attempt. Without this, a hung upstream call is only
+ * ever ended by the route's `maxDuration`, which burns the whole budget on one
+ * attempt instead of leaving room to fail over to the next model in the chain.
+ */
+const DEFAULT_CALL_TIMEOUT_MS = 45_000
+
+/**
  * A model id env var may name several models, comma separated. They are tried
  * in order, and a model that answers 503 UNAVAILABLE — which the newest Flash
  * models do routinely on the free tier when demand spikes — falls through to
@@ -83,6 +90,8 @@ type StructuredCall<T extends z.ZodType> = {
    * comparison run as a single call over both documents.
    */
   documents?: DocumentPart[]
+  /** Per-attempt ceiling. Callers with a larger `maxDuration` may raise this. */
+  timeoutMs?: number
 }
 
 /**
@@ -96,6 +105,7 @@ export async function generateStructured<T extends z.ZodType>({
   prompt,
   schema,
   documents = [],
+  timeoutMs = DEFAULT_CALL_TIMEOUT_MS,
 }: StructuredCall<T>): Promise<z.infer<T>> {
   const parts = [
     ...documents.map((document) => ({
@@ -114,6 +124,7 @@ export async function generateStructured<T extends z.ZodType>({
           temperature: TEMPERATURE,
           responseMimeType: 'application/json',
           responseJsonSchema: toModelSchema(schema),
+          abortSignal: AbortSignal.timeout(timeoutMs),
         },
       }),
     ),
@@ -156,17 +167,24 @@ export async function* generateTextStream({
   model,
   systemInstruction,
   prompt,
+  timeoutMs = DEFAULT_CALL_TIMEOUT_MS,
 }: {
   model: string
   systemInstruction: string
   prompt: string
+  /** Per-attempt ceiling. Aborts the stream, not just the opening call, if it hangs. */
+  timeoutMs?: number
 }): AsyncGenerator<string> {
   const { iterator, first } = await withModelFailover(model, (modelId) =>
     call(async () => {
       const stream = await genai().models.generateContentStream({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { systemInstruction, temperature: TEMPERATURE },
+        config: {
+          systemInstruction,
+          temperature: TEMPERATURE,
+          abortSignal: AbortSignal.timeout(timeoutMs),
+        },
       })
 
       const iterator = stream[Symbol.asyncIterator]()

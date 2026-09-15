@@ -2,6 +2,7 @@ import { env } from '@/lib/env'
 import { AppError, ERROR_CODES, toErrorResponse } from '@/lib/errors'
 import { generateTextStream } from '@/lib/gemini'
 import { resolveClauseContext } from '@/lib/grounding'
+import { assertSameOrigin } from '@/lib/origin-guard'
 import { ASK_SYSTEM_PROMPT, askUserPrompt } from '@/lib/prompts'
 import { clientKey, enforceRateLimit } from '@/lib/rate-limit'
 import { askRequestSchema } from '@/lib/schema'
@@ -24,6 +25,7 @@ const REQUESTS_PER_MINUTE = 10
  */
 export async function POST(request: Request): Promise<Response> {
   try {
+    assertSameOrigin(request)
     await enforceRateLimit(clientKey(request, 'ask'), REQUESTS_PER_MINUTE)
 
     const body = await request.json().catch(() => null)

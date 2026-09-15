@@ -4,6 +4,7 @@ import { signContext } from '@/lib/context-token'
 import { env } from '@/lib/env'
 import { AppError, ERROR_CODES, toErrorResponse } from '@/lib/errors'
 import { generateStructured } from '@/lib/gemini'
+import { assertSameOrigin } from '@/lib/origin-guard'
 import { ANALYZE_SYSTEM_PROMPT, analyzeUserPrompt } from '@/lib/prompts'
 import { clientKey, enforceRateLimit } from '@/lib/rate-limit'
 import { type Analysis, extractedAnalysisSchema, withClauseIds } from '@/lib/schema'
@@ -30,6 +31,7 @@ const REQUESTS_PER_MINUTE = 5
  */
 export async function POST(request: Request): Promise<Response> {
   try {
+    assertSameOrigin(request)
     await enforceRateLimit(clientKey(request, 'analyze'), REQUESTS_PER_MINUTE)
 
     // Before `formData()`, which would buffer an oversized body into memory first.
@@ -64,6 +66,7 @@ export async function POST(request: Request): Promise<Response> {
       prompt: analyzeUserPrompt(file.name),
       schema: extractedAnalysisSchema,
       documents: [{ mimeType: ACCEPTED_MIME_TYPE, base64: Buffer.from(bytes).toString('base64') }],
+      timeoutMs: 110_000,
     })
 
     const analysis = withClauseIds(extracted)
