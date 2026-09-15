@@ -2,6 +2,9 @@ import { loadAnalysis } from '@/lib/analysis-store'
 import { AppError, ERROR_CODES, toErrorResponse } from '@/lib/errors'
 import { shareIdSchema } from '@/lib/schema'
 
+/** Two reads, no model call. */
+export const maxDuration = 10
+
 /** Loads a saved analysis by its share id. No model call, so no rate limit. */
 export async function GET(
   _request: Request,

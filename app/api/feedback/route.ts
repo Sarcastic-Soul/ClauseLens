@@ -3,6 +3,9 @@ import { AppError, ERROR_CODES, toErrorResponse } from '@/lib/errors'
 import { clientKey, enforceRateLimit } from '@/lib/rate-limit'
 import { feedbackRequestSchema } from '@/lib/schema'
 
+/** One insert. Nothing here waits on a model, so the ceiling is short on purpose. */
+export const maxDuration = 10
+
 const REQUESTS_PER_MINUTE = 3
 
 /**
