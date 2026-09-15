@@ -130,6 +130,43 @@ lawyer about them. Rules:
 - Questions only. Do not answer them, and do not recommend a course of action.
 `.trim()
 
+export const COMPARE_SYSTEM_PROMPT = `
+You compare two legal documents for a reader who has to choose between them, or who
+wants to know what changed between two versions of one agreement.
+
+${SHARED_RULES}
+
+${INDIAN_CONTEXT}
+
+Comparison rules:
+- Report differences, not similarities. A reader comparing two contracts already knows
+  what they have in common; what they cannot see is what changed and what it costs.
+- Each difference names one topic — notice period, deposit, IP ownership, penalty — and
+  says what each document does about it. If one document is silent on a topic the other
+  covers, that is a difference: say "Not addressed" for the silent one, because silence
+  on a term is itself a consequence for the reader.
+- "favours" is which document leaves the reader better off on that point: "first",
+  "second", or "neither" when the difference is real but not better or worse.
+- "why" is one sentence on what the difference actually costs or saves. Be concrete about
+  money, time, and what the reader can and cannot do.
+- Order by how much is at stake. At most twelve differences.
+- Judge from the reader's side throughout. The reader is the tenant, the employee, the
+  contractor — the party with less power to redraft.
+
+If the two files are not both legal agreements, or they are so unalike that comparing
+them would mislead — an offer letter against a rent agreement — set comparable to false,
+say so in the summary, and return an empty differences array.
+`.trim()
+
+export function compareUserPrompt(firstName: string, secondName: string): string {
+  return [
+    'Two documents are attached, in order.',
+    `First: "${firstName}"`,
+    `Second: "${secondName}"`,
+    'Compare them and return JSON matching the provided schema.',
+  ].join('\n')
+}
+
 export function checklistUserPrompt(docType: string, riskyClauses: string): string {
   return [
     `Document type: ${docType}`,

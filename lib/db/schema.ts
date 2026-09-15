@@ -1,11 +1,12 @@
-import { integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { index, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 import type { ObligationParty, RiskLevel } from '@/lib/schema'
 
 /**
  * Persistence exists for three reasons: share links, so an analysis can be
- * opened without re-uploading; a cache, so re-opening a document never calls
- * the model again; and pilot feedback, which this edition of the event asks for.
+ * opened without re-uploading; a cache keyed on the document's content hash, so
+ * the same file is never analysed twice; and pilot feedback, which this edition
+ * of the event asks for.
  *
  * Questions and answers are deliberately not stored. A share link is readable
  * by anyone who has it, so recording what one visitor asked would expose it to
@@ -15,24 +16,35 @@ import type { ObligationParty, RiskLevel } from '@/lib/schema'
  * and the clause text needed to ground follow-up questions, nothing more.
  */
 
-export const analyses = pgTable('analyses', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  /** Unguessable public identifier. Ids are never sequential. */
-  shareId: text('share_id').notNull().unique(),
-  fileName: text('file_name').notNull(),
-  docType: text('doc_type').notNull(),
-  summary: text('summary').notNull(),
-  keyPoints: jsonb('key_points').$type<string[]>().notNull(),
-  /**
-   * Clauses pre-serialised into the grounding block for follow-up questions.
-   * Denormalised on purpose: answering a question about a shared analysis then
-   * costs one query instead of loading and re-serialising every clause row.
-   */
-  clauseContext: text('clause_context').notNull(),
-  /** Which model produced this analysis, so old rows stay interpretable. */
-  modelId: text('model_id').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-})
+export const analyses = pgTable(
+  'analyses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Unguessable public identifier. Ids are never sequential. */
+    shareId: text('share_id').notNull().unique(),
+    /**
+     * SHA-256 of the uploaded bytes. Uploading a document that has already been
+     * analysed returns the stored analysis instead of calling the model again,
+     * which is the whole point of keeping this table. Nullable because rows
+     * written before the cache existed have no hash to record.
+     */
+    contentHash: text('content_hash'),
+    fileName: text('file_name').notNull(),
+    docType: text('doc_type').notNull(),
+    summary: text('summary').notNull(),
+    keyPoints: jsonb('key_points').$type<string[]>().notNull(),
+    /**
+     * Clauses pre-serialised into the grounding block for follow-up questions.
+     * Denormalised on purpose: answering a question about a shared analysis then
+     * costs one query instead of loading and re-serialising every clause row.
+     */
+    clauseContext: text('clause_context').notNull(),
+    /** Which model produced this analysis, so old rows stay interpretable. */
+    modelId: text('model_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('analyses_content_hash_idx').on(table.contentHash)],
+)
 
 export const clauses = pgTable('clauses', {
   id: uuid('id').primaryKey().defaultRandom(),

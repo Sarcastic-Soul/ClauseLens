@@ -4,7 +4,7 @@ import { CornerDownLeft, Loader2 } from 'lucide-react'
 import { useId, useState } from 'react'
 
 import { parseAnswer, type ParsedAnswer } from '@/lib/answer-format'
-import { ApiError, askQuestion } from '@/lib/api-client'
+import { ApiError, askQuestion, type Grounding } from '@/lib/api-client'
 import type { Clause } from '@/lib/schema'
 
 type Exchange = { question: string; parsed: ParsedAnswer }
@@ -14,17 +14,10 @@ type Exchange = { question: string; parsed: ParsedAnswer }
  * on a spinner. Citations are rendered as buttons that jump to the clause the
  * answer came from — the grounding is checkable, not just asserted.
  */
-export function AskBox({
-  clauses,
-  clauseContext,
-  shareId,
-}: {
-  clauses: Clause[]
-  clauseContext?: string
-  shareId?: string
-}) {
+export function AskBox({ clauses, grounding }: { clauses: Clause[]; grounding: Grounding }) {
   const inputId = useId()
   const [question, setQuestion] = useState('')
+  const [asking, setAsking] = useState<string | null>(null)
   const [streaming, setStreaming] = useState<ParsedAnswer | null>(null)
   const [history, setHistory] = useState<Exchange[]>([])
   const [busy, setBusy] = useState(false)
@@ -38,12 +31,13 @@ export function AskBox({
     setBusy(true)
     setError(null)
     setStreaming(null)
+    setAsking(asked)
     setQuestion('')
 
     let latest: ParsedAnswer | null = null
 
     try {
-      for await (const text of askQuestion({ question: asked, clauseContext, shareId })) {
+      for await (const text of askQuestion({ question: asked, ...grounding })) {
         latest = parseAnswer(text)
         setStreaming(latest)
       }
@@ -52,6 +46,7 @@ export function AskBox({
       setError(caught instanceof ApiError ? caught.message : 'That question could not be answered.')
     } finally {
       setStreaming(null)
+      setAsking(null)
       setBusy(false)
     }
   }
@@ -74,9 +69,9 @@ export function AskBox({
             <AnswerBlock question={exchange.question} parsed={exchange.parsed} clauses={clauses} />
           </li>
         ))}
-        {streaming && (
+        {asking && streaming && (
           <li>
-            <AnswerBlock question="…" parsed={streaming} clauses={clauses} streaming />
+            <AnswerBlock question={asking} parsed={streaming} clauses={clauses} streaming />
           </li>
         )}
       </ol>

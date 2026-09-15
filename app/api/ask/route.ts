@@ -1,7 +1,7 @@
-import { loadClauseContext } from '@/lib/analysis-store'
 import { env } from '@/lib/env'
 import { AppError, ERROR_CODES, toErrorResponse } from '@/lib/errors'
 import { generateTextStream } from '@/lib/gemini'
+import { resolveClauseContext } from '@/lib/grounding'
 import { ASK_SYSTEM_PROMPT, askUserPrompt } from '@/lib/prompts'
 import { clientKey, enforceRateLimit } from '@/lib/rate-limit'
 import { askRequestSchema } from '@/lib/schema'
@@ -18,9 +18,9 @@ const REQUESTS_PER_MINUTE = 10
  * and which clauses were cited — travels inside that text and is parsed by
  * `lib/answer-format.ts`, which works on partial input.
  *
- * Clause context comes from the request when the analysis has not been saved,
- * and from the database when it has. Either way the model only ever sees
- * clauses from one document.
+ * Clause context comes from the database when the analysis was saved, and from
+ * the request — signed, so it can only be context this server produced — when it
+ * was not. Either way the model only ever sees clauses from one document.
  */
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -48,24 +48,6 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     return toErrorResponse(error)
   }
-}
-
-async function resolveClauseContext({
-  clauseContext,
-  shareId,
-}: {
-  clauseContext?: string
-  shareId?: string
-}): Promise<string> {
-  if (clauseContext) return clauseContext
-
-  if (shareId) {
-    const stored = await loadClauseContext(shareId)
-    if (!stored) throw new AppError(ERROR_CODES.NOT_FOUND, `No analysis for share id ${shareId}`)
-    return stored
-  }
-
-  throw new AppError(ERROR_CODES.INVALID_INPUT, 'Neither clauseContext nor shareId was supplied')
 }
 
 /**

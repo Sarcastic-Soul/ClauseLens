@@ -1,6 +1,7 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 
 import { AnalysisView } from '@/components/AnalysisView'
@@ -38,6 +39,11 @@ export default function Home() {
           Rental agreements, offer letters and contracts, read clause by clause and explained in
           plain language — with the terms that could cost you flagged.
         </p>
+        <p className="mt-3 text-sm">
+          <Link href="/compare" className="text-accent hover:underline">
+            Comparing two documents instead?
+          </Link>
+        </p>
       </header>
 
       <main>
@@ -57,7 +63,11 @@ export default function Home() {
 
         {status === 'ready' && result && (
           <div className="mt-10 border-t border-border pt-8">
-            <AnalysisView analysis={result.analysis} shareId={result.shareId} />
+            <AnalysisView
+              analysis={result.analysis}
+              shareId={result.shareId}
+              contextToken={result.contextToken}
+            />
 
             <div className="mt-12 border-t border-border pt-8">
               <FeedbackWidget />

@@ -3,16 +3,22 @@
 import { ClipboardList, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 
-import { ApiError, fetchChecklist } from '@/lib/api-client'
-import { toClauseContext } from '@/lib/clause-context'
+import { ApiError, fetchChecklist, type Grounding } from '@/lib/api-client'
 import type { Checklist, Clause } from '@/lib/schema'
 
 /**
  * The end of what this product will do: it prepares the reader to get advice
- * rather than offering any. Only the riskiest clauses are sent, which keeps the
- * questions specific and the request small.
+ * rather than offering any. The whole document is sent and the prompt picks what
+ * is worth asking about — the clause context is signed as a unit, so sending a
+ * subset of it is not something the client gets to decide.
  */
-export function ChecklistPanel({ docType, clauses }: { docType: string; clauses: Clause[] }) {
+export function ChecklistPanel({
+  clauses,
+  grounding,
+}: {
+  clauses: Clause[]
+  grounding: Grounding
+}) {
   const [checklist, setChecklist] = useState<Checklist | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -23,12 +29,7 @@ export function ChecklistPanel({ docType, clauses }: { docType: string; clauses:
     setBusy(true)
     setError(null)
     try {
-      setChecklist(
-        await fetchChecklist({
-          docType,
-          clauseContext: toClauseContext(notable.length > 0 ? notable : clauses),
-        }),
-      )
+      setChecklist(await fetchChecklist(grounding))
     } catch (caught) {
       setError(
         caught instanceof ApiError ? caught.message : 'The checklist could not be prepared.',

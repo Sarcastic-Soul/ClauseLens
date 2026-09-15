@@ -69,10 +69,43 @@ export const answerSchema = z.object({
 
 export type Answer = z.infer<typeof answerSchema>
 
-export const checklistRequestSchema = z.object({
-  docType: z.string().trim().min(1).max(200),
-  clauseContext: z.string().trim().min(1).max(200_000),
-})
+export const shareIdSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{12,32}$/, 'Malformed share id')
+
+/** An HMAC of the clause context, issued by `/api/analyze`. Base64url, so short. */
+export const contextTokenSchema = z.string().min(16).max(200)
+
+/**
+ * Grounding context reaches `/api/ask` and `/api/checklist` one of two ways: a
+ * share id, which the server resolves against the database, or the context
+ * itself plus the token that proves this server produced it. Requests carrying
+ * unsigned context are refused — see `lib/context-token.ts`.
+ */
+const groundedRequest = {
+  clauseContext: z.string().trim().max(200_000).optional(),
+  contextToken: contextTokenSchema.optional(),
+  shareId: shareIdSchema.optional(),
+}
+
+function isGrounded(body: {
+  clauseContext?: string
+  contextToken?: string
+  shareId?: string
+}): boolean {
+  return Boolean(body.shareId ?? (body.clauseContext && body.contextToken))
+}
+
+const GROUNDING_REQUIRED = 'Provide either a shareId, or clauseContext with its contextToken'
+
+export const checklistRequestSchema = z
+  .object({
+    docType: z.string().trim().min(1).max(200).optional(),
+    ...groundedRequest,
+  })
+  .refine((body) => Boolean(body.shareId) || Boolean(isGrounded(body) && body.docType), {
+    message: `${GROUNDING_REQUIRED}, and a docType alongside clauseContext`,
+  })
 
 export const checklistSchema = z.object({
   items: z
@@ -88,29 +121,55 @@ export const checklistSchema = z.object({
 
 export type Checklist = z.infer<typeof checklistSchema>
 
+/** Which document a difference is better for, from the reader's side. */
+export const FAVOURS = ['first', 'second', 'neither'] as const
+export type Favours = (typeof FAVOURS)[number]
+
+/**
+ * Comparison output. Differences only: listing what two contracts have in
+ * common would bury the answer the reader came for, which is what changed and
+ * whether the change is in their favour.
+ */
+export const comparisonSchema = z.object({
+  docTypeFirst: z.string().min(1).describe('Type of the first document.'),
+  docTypeSecond: z.string().min(1).describe('Type of the second document.'),
+  comparable: z
+    .boolean()
+    .describe('False when the two documents are too unalike to compare meaningfully.'),
+  summary: z.string().min(1).describe('Two or three sentences on how the two documents differ.'),
+  differences: z
+    .array(
+      z.object({
+        topic: z.string().min(1).describe('What the difference is about, e.g. "Notice period".'),
+        inFirst: z.string().min(1).describe('What the first document says. "Not addressed" if absent.'),
+        inSecond: z.string().min(1).describe('What the second document says. "Not addressed" if absent.'),
+        favours: z
+          .enum(FAVOURS)
+          .describe('Which document is better for the reader on this point.'),
+        why: z.string().min(1).describe('One sentence on what the difference costs or saves.'),
+      }),
+    )
+    .max(12),
+})
+
+export type Comparison = z.infer<typeof comparisonSchema>
+
 export const feedbackRequestSchema = z.object({
   rating: z.number().int().min(1).max(5),
   comment: z.string().trim().max(2000).optional(),
 })
 
-export const shareIdSchema = z
-  .string()
-  .regex(/^[A-Za-z0-9_-]{12,32}$/, 'Malformed share id')
-
 /**
- * A question carries its own clause context when the analysis was never saved,
- * or a share id when it was. Exactly one is required, so an unsaved analysis
- * still supports follow-up questions.
+ * A question carries a share id when the analysis was saved, or the clause
+ * context and its token when it was not, so an unsaved analysis still supports
+ * follow-up questions without opening the endpoint to arbitrary text.
  */
 export const askRequestSchema = z
   .object({
     question: z.string().trim().min(3).max(500),
-    clauseContext: z.string().max(200_000).optional(),
-    shareId: shareIdSchema.optional(),
+    ...groundedRequest,
   })
-  .refine((body) => Boolean(body.clauseContext ?? body.shareId), {
-    message: 'Either clauseContext or shareId is required',
-  })
+  .refine(isGrounded, { message: GROUNDING_REQUIRED })
 
 /**
  * Gemini accepts standard JSON Schema, but rejects the `$schema` annotation

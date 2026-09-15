@@ -19,7 +19,8 @@ in a banner.
 ## Live
 
 **<https://clauselens-mu.vercel.app>** — no login, no signup. Upload a PDF, or use one of the
-one-click samples on the page.
+one-click samples on the page. [`/compare`](https://clauselens-mu.vercel.app/compare) puts two
+documents side by side.
 
 Three analyses are already saved, so the product can be read without uploading anything. Each was
 produced by the same code path from a different document, which is the quickest way to see that the
@@ -45,6 +46,7 @@ shared link is a complete, usable copy of the tool.
 | Answering questions based on provided documents | Q&A grounded only in the uploaded document, with clause citations | `app/api/ask/route.ts`, `components/AskBox.tsx` |
 | Helping users understand their options and next steps | Top-five "before you sign" points | `lib/schema.ts` → `keyPoints` |
 | Helping users prepare questions for a legal professional | Generated question checklist from the riskiest clauses | `app/api/checklist/route.ts`, `components/ChecklistPanel.tsx` |
+| Comparing legal documents | Two documents side by side: what differs, and which side each difference favours | `app/api/compare/route.ts`, `components/ComparisonView.tsx` |
 | Generating summaries, checklists, actionable outputs | Document summary, risk counts, shareable permalink | `components/AnalysisView.tsx` |
 
 The documents targeted are Indian — leave and licence agreements, offer letters, contractor
@@ -54,7 +56,7 @@ contract vocabulary misses them.
 
 ## GenAI architecture
 
-All generative work runs on the **Google Gemini API** (`@google/genai`). There are four call sites,
+All generative work runs on the **Google Gemini API** (`@google/genai`). There are five call sites,
 and every one of them lives behind `lib/gemini.ts` — no route talks to the SDK directly.
 
 | # | Where | Trigger | Model | Mode | Output |
@@ -63,6 +65,7 @@ and every one of them lives behind `lib/gemini.ts` — no route talks to the SDK
 | 2 | `app/api/analyze/route.ts` (same call) | A document is uploaded | `GEMINI_MODEL_ANALYZE` | JSON mode | Document type, summary, top-five key points |
 | 3 | `app/api/ask/route.ts` | A question is asked | `GEMINI_MODEL_QA` | Streamed text | Grounded answer with inline `[c-4]` citations, or an explicit "not in this document" |
 | 4 | `app/api/checklist/route.ts` | "Prepare my questions" | `GEMINI_MODEL_ANALYZE` | JSON mode | Questions to ask a legal professional, ordered by what is at stake |
+| 5 | `app/api/compare/route.ts` | Two documents are uploaded | `GEMINI_MODEL_ANALYZE` | JSON mode, both PDFs in one call | Differences by topic, what each document says, and which side each difference favours |
 
 Notes on the integration:
 
@@ -74,6 +77,10 @@ Notes on the integration:
 - **Model ids are configuration, not code**, and each may be a comma-separated chain. The newest
   Flash models return `503 UNAVAILABLE` on the free tier when demand spikes, so a request falls
   through to the next model rather than failing.
+- **Comparison sends both PDFs in one call** rather than analysing each and diffing the results.
+  Terms that mean the same thing are worded differently in every pair of contracts, and lining those
+  up is what the model is for; a diff of two separate analyses would report wording changes as
+  substantive ones.
 - **Q&A streams**, which rules out JSON mode for that call. The structure still needed — answerable
   or not, and which clauses were cited — travels inside the text and is parsed by
   `lib/answer-format.ts`, which is pure and tolerates partial input.
@@ -145,14 +152,18 @@ app/
   api/analyze/      clause extraction and summary      (GenAI 1, 2)
   api/ask/          grounded question answering        (GenAI 3)
   api/checklist/    questions for a legal professional (GenAI 4)
+  api/compare/      two documents, what differs          (GenAI 5)
   api/a/[shareId]/  load a saved analysis
   api/feedback/     pilot feedback
   a/[shareId]/      shared analysis page
+  compare/          two-document comparison
 lib/
   gemini.ts         the only module that calls the model
   prompts.ts        every instruction sent to the model
   schema.ts         Zod schemas: requests, model output, domain types
   answer-format.ts  citation and refusal parsing (pure)
+  context-token.ts  signs clause context so it cannot be forged (pure)
+  grounding.ts      resolves what a follow-up call answers over
   clause-context.ts grounding block shared by client and server (pure)
   analysis-store.ts persistence, tolerant of an absent database
   rate-limit.ts     per-IP windows on the model-calling routes
@@ -171,6 +182,8 @@ lib/
 | A document that is not a contract | Reported as `unrecognised` with no clauses invented |
 | A question the document cannot answer | Answered as "not in this document" rather than guessed |
 | Model returns malformed JSON | Schema validation fails the request with a clear message |
+| The same document is uploaded twice | Served from the database on its content hash; no second model call |
+| Two documents too unalike to compare | Reported as not comparable rather than differences invented |
 
 Analysis takes roughly 20 to 60 seconds for a multi-page contract, because every clause is quoted
 from the original rather than summarised loosely.

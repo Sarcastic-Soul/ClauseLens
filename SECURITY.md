@@ -26,10 +26,12 @@ as one failed request with a clear server-side message instead of a failed build
 
 Every route validates before doing work.
 
-- **Uploads** (`lib/upload.ts`) — rejected if zero bytes, over 4 MB, or not starting with the
-  `%PDF-` magic number. The magic-number check matters because a browser can claim any MIME type
-  for any file; the client-side check in `UploadPane` is a convenience, and the server check is the
-  one that guards the endpoint.
+- **Uploads** (`lib/upload.ts`) — rejected if zero bytes, over the cap, or not starting with the
+  `%PDF-` magic number. The cap is 4 MB for a single analysis and 2 MB per file when comparing two,
+  because Vercel's 4.5 MB limit is on the whole request body rather than on each part. The
+  magic-number check matters because a browser can claim any MIME type for any file; the
+  client-side check in `UploadPane` is a convenience, and the server check is the one that guards
+  the endpoint.
 - **Share ids** (`lib/schema.ts`) — must match `^[A-Za-z0-9_-]{12,32}$`. A malformed id is a 404,
   not a database query.
 - **Questions** — 3 to 500 characters.
@@ -70,29 +72,49 @@ would expose it to the next.
 
 ## Abuse of a metered endpoint
 
-`/api/analyze`, `/api/ask`, `/api/checklist` and `/api/feedback` are public and call a paid API.
-Each enforces a per-IP, per-minute limit (`lib/rate-limit.ts`), keyed on `x-forwarded-for`.
+`/api/analyze`, `/api/ask`, `/api/checklist`, `/api/compare` and `/api/feedback` are public and call
+a paid API. Each enforces a per-IP, per-minute limit (`lib/rate-limit.ts`), keyed on
+`x-forwarded-for`.
 
-Two honest limitations:
+**Grounded endpoints answer only over context this server produced.** `/api/ask` and
+`/api/checklist` need the document's clauses. A saved analysis is addressed by share id and read
+from the database, so nothing the caller sends is trusted. An analysis that was never saved — the
+database was unreachable, and it exists only in the browser — has to send its clauses back, and
+that would otherwise make the endpoint a general question-answering proxy on our API key.
 
-- **The limiter is per-instance and in-memory.** Serverless instances do not share state, so the
-  effective limit is looser than the configured one. It stops casual abuse of a public endpoint; it
-  is not a defence against a distributed attacker. A shared store would fix it and is the right
-  change if this ever left pilot scale.
-- **`/api/ask` accepts caller-supplied `clauseContext`.** This exists so that an analysis which was
-  never saved — because the database was unreachable — still supports follow-up questions. The cost
-  is that the endpoint will answer over text the caller supplies, so within the rate limit it can
-  be used as a general question-answering proxy. The system prompt constrains the shape of the
-  answer, and the rate limit constrains the volume. Requiring a `shareId` would close it and would
-  also remove the offline-tolerance it was built for; at pilot scale the trade was made in favour of
-  the feature, and it is recorded here rather than left unstated.
+So the analyse response carries a token: an HMAC-SHA256 of the exact clause context the model
+produced (`lib/context-token.ts`). The client returns context and token together, the endpoint
+verifies with a constant-time comparison, and unsigned or altered context is rejected as
+`INVALID_INPUT`. The token authenticates the context, not the user: it carries no identity and no
+authority beyond "these clauses came from an analysis we ran".
+
+The signing key is `ASK_CONTEXT_SECRET` when set, and otherwise derived from `GEMINI_API_KEY` via
+HKDF-SHA256, so the protection is on by default rather than waiting for one more environment
+variable to be remembered. The derivation is one-way; an HMAC made with the derived key does not
+expose the API key.
+
+One honest limitation remains:
+
+- **The rate limiter is per-instance and in-memory.** Serverless instances do not share state, so
+  the effective limit is looser than the configured one. It stops casual abuse of a public endpoint;
+  it is not a defence against a distributed attacker. A shared store — Redis, or Vercel KV — would
+  fix it, and is the right change if this ever left pilot scale. It is not built now because it adds
+  a service to the deployment for a pilot whose realistic worst case is one person clicking quickly.
 
 ## Data retention
 
 - **The uploaded PDF is never written anywhere.** It is read into memory, base64-encoded, sent to
   Gemini, and dropped when the request ends.
-- **Stored:** document type, summary, key points, clause rows, and the pre-serialised clause
-  context. Enough to re-render a saved analysis and ground a follow-up question.
+- **Stored:** document type, summary, key points, clause rows, the pre-serialised clause context,
+  and a SHA-256 of the uploaded bytes. Enough to re-render a saved analysis, ground a follow-up
+  question, and recognise a document that has already been analysed.
+- **The content hash is a fingerprint, not a copy.** It identifies a file we have seen before; it
+  cannot be reversed into the document's contents.
+- **A cache hit returns the caller's own file name**, not the one the first uploader used. Two
+  people uploading the same standard agreement get the same analysis — it was produced from
+  identical bytes — but neither learns what the other called their copy.
+- **Comparisons are not stored at all.** They are about a pairing rather than a document, so there
+  is nothing to cache and no share link to issue.
 - **Not stored:** the file, the file's bytes, questions, answers, IP addresses, or any identifier
   for the visitor.
 

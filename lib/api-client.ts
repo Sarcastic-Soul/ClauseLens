@@ -1,4 +1,4 @@
-import type { Analysis, Checklist } from '@/lib/schema'
+import type { Analysis, Checklist, Comparison } from '@/lib/schema'
 
 /**
  * Browser-side wrapper around the API. Route handlers always answer with either
@@ -10,7 +10,19 @@ export type AnalyzeResult = {
   analysis: Analysis
   shareId: string | null
   fileName: string
+  /** True when the document had been analysed before and no model call was made. */
+  cached: boolean
+  /** Proves the clause context came from this server. Sent back with follow-up calls. */
+  contextToken: string
 }
+
+/**
+ * How a follow-up call names the document it is about: a share id when the
+ * analysis was saved, or the clause context and its token when it was not.
+ */
+export type Grounding =
+  | { shareId: string }
+  | { clauseContext: string; contextToken: string; docType: string }
 
 export class ApiError extends Error {
   readonly code: string
@@ -35,7 +47,7 @@ export async function analyzeDocument(file: File, signal?: AbortSignal): Promise
  * on every chunk, which is why `lib/answer-format.ts` tolerates partial input.
  */
 export async function* askQuestion(
-  body: { question: string; clauseContext?: string; shareId?: string },
+  body: { question: string } & Grounding,
   signal?: AbortSignal,
 ): AsyncGenerator<string> {
   const response = await fetch('/api/ask', {
@@ -59,8 +71,26 @@ export async function* askQuestion(
   }
 }
 
+export type CompareResult = {
+  comparison: Comparison
+  fileNames: { first: string; second: string }
+}
+
+export async function compareDocuments(
+  first: File,
+  second: File,
+  signal?: AbortSignal,
+): Promise<CompareResult> {
+  const body = new FormData()
+  body.append('first', first)
+  body.append('second', second)
+
+  const response = await fetch('/api/compare', { method: 'POST', body, signal })
+  return unwrap<CompareResult>(response)
+}
+
 export async function fetchChecklist(
-  body: { docType: string; clauseContext: string },
+  body: Grounding,
   signal?: AbortSignal,
 ): Promise<Checklist> {
   const response = await fetch('/api/checklist', {

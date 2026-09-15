@@ -1,6 +1,7 @@
 import { env } from '@/lib/env'
 import { AppError, ERROR_CODES, toErrorResponse } from '@/lib/errors'
 import { generateStructured } from '@/lib/gemini'
+import { resolveGrounding } from '@/lib/grounding'
 import { CHECKLIST_SYSTEM_PROMPT, checklistUserPrompt } from '@/lib/prompts'
 import { clientKey, enforceRateLimit } from '@/lib/rate-limit'
 import { checklistRequestSchema, checklistSchema } from '@/lib/schema'
@@ -25,10 +26,12 @@ export async function POST(request: Request): Promise<Response> {
       throw new AppError(ERROR_CODES.INVALID_INPUT, parsed.error.message)
     }
 
+    const { clauseContext, docType } = await resolveGrounding(parsed.data)
+
     const checklist = await generateStructured({
       model: env().GEMINI_MODEL_ANALYZE,
       systemInstruction: CHECKLIST_SYSTEM_PROMPT,
-      prompt: checklistUserPrompt(parsed.data.docType, parsed.data.clauseContext),
+      prompt: checklistUserPrompt(docType, clauseContext),
       schema: checklistSchema,
     })
 

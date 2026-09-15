@@ -47,8 +47,11 @@ const FAILOVER_CODES: ErrorCode[] = [
  * Runs `attempt` against each model in the chain until one succeeds. The error
  * from the last model is what surfaces, so the user sees a real failure rather
  * than a generic one.
+ *
+ * Exported for tests: `attempt` is injected, so the fallthrough logic can be
+ * exercised without a network call.
  */
-async function withModelFailover<T>(
+export async function withModelFailover<T>(
   spec: string,
   attempt: (model: string) => Promise<T>,
 ): Promise<T> {
@@ -78,8 +81,12 @@ type StructuredCall<T extends z.ZodType> = {
   systemInstruction: string
   prompt: string
   schema: T
-  /** Optional PDF sent inline. Gemini reads PDFs natively — we never parse them ourselves. */
-  document?: DocumentPart
+  /**
+   * PDFs sent inline, in order. Gemini reads PDFs natively — we never parse them
+   * ourselves — and accepts several in one request, which is what lets the
+   * comparison run as a single call over both documents.
+   */
+  documents?: DocumentPart[]
 }
 
 /**
@@ -92,12 +99,12 @@ export async function generateStructured<T extends z.ZodType>({
   systemInstruction,
   prompt,
   schema,
-  document,
+  documents = [],
 }: StructuredCall<T>): Promise<z.infer<T>> {
   const parts = [
-    ...(document
-      ? [{ inlineData: { mimeType: document.mimeType, data: document.base64 } }]
-      : []),
+    ...documents.map((document) => ({
+      inlineData: { mimeType: document.mimeType, data: document.base64 },
+    })),
     { text: prompt },
   ]
 

@@ -3,6 +3,7 @@ import { ChecklistPanel } from '@/components/ChecklistPanel'
 import { ClauseCard } from '@/components/ClauseCard'
 import { RiskSummary } from '@/components/RiskSummary'
 import { ShareLink } from '@/components/ShareLink'
+import type { Grounding } from '@/lib/api-client'
 import { toClauseContext } from '@/lib/clause-context'
 import { type Analysis, UNRECOGNISED_DOC_TYPE } from '@/lib/schema'
 
@@ -13,12 +14,27 @@ import { type Analysis, UNRECOGNISED_DOC_TYPE } from '@/lib/schema'
 export function AnalysisView({
   analysis,
   shareId,
+  contextToken,
 }: {
   analysis: Analysis
   shareId?: string | null
+  /** Required only when there is no share id, i.e. the analysis was never saved. */
+  contextToken?: string
 }) {
   const unrecognised = analysis.docType === UNRECOGNISED_DOC_TYPE
-  const clauseContext = toClauseContext(analysis.clauses)
+
+  /**
+   * A saved analysis is addressed by its share id, so nothing has to be sent
+   * and nothing has to be trusted. An unsaved one sends its clauses with the
+   * signature the analyse call issued for them.
+   */
+  const grounding: Grounding = shareId
+    ? { shareId }
+    : {
+        clauseContext: toClauseContext(analysis.clauses),
+        contextToken: contextToken ?? '',
+        docType: analysis.docType,
+      }
 
   return (
     <div className="space-y-10">
@@ -46,13 +62,9 @@ export function AnalysisView({
             </ul>
           </section>
 
-          <AskBox
-            clauses={analysis.clauses}
-            clauseContext={shareId ? undefined : clauseContext}
-            shareId={shareId ?? undefined}
-          />
+          <AskBox clauses={analysis.clauses} grounding={grounding} />
 
-          <ChecklistPanel docType={analysis.docType} clauses={analysis.clauses} />
+          <ChecklistPanel clauses={analysis.clauses} grounding={grounding} />
         </>
       )}
     </div>
