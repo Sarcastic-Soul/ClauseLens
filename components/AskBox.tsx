@@ -98,7 +98,7 @@ export function AskBox({ clauses, grounding }: { clauses: Clause[]; grounding: G
           <button
             type="submit"
             disabled={busy || question.trim().length === 0}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? (
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />

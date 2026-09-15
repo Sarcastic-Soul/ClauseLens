@@ -95,7 +95,7 @@ export function ComparePane({
           type="button"
           disabled={busy || !first || !second}
           onClick={() => first && second && onCompare(first, second)}
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Upload className="size-4" aria-hidden="true" />
           Compare these two
@@ -154,7 +154,7 @@ function FilePicker({
         type="file"
         accept="application/pdf,.pdf"
         disabled={busy}
-        className="mt-2 block w-full cursor-pointer text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:cursor-not-allowed"
+        className="mt-2 block w-full cursor-pointer text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-accent-foreground disabled:cursor-not-allowed"
         onChange={(event) => {
           const picked = event.target.files?.[0]
           if (picked) onPick(picked)

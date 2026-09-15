@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /*
   One palette, defined once. Risk colours are the only saturated hues in the
@@ -14,6 +14,12 @@
   --muted: #6b6560;
   --accent: #1d4ed8;
   --accent-soft: #eff4ff;
+  /*
+    Text on an accent-filled surface. It is a token rather than a literal white
+    because --accent inverts in dark mode: white on the light blue below is
+    2.5:1, which fails WCAG AA.
+  */
+  --accent-foreground: #ffffff;
 
   --risk-high: #b42318;
   --risk-high-soft: #fef3f2;
@@ -32,6 +38,7 @@
     --muted: #a09a93;
     --accent: #7ba2ff;
     --accent-soft: #1b2440;
+    --accent-foreground: #0b1020;
 
     --risk-high: #fda29b;
     --risk-high-soft: #2d1614;
@@ -50,6 +57,7 @@
   --color-muted: var(--muted);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
   --color-risk-high: var(--risk-high);
   --color-risk-high-soft: var(--risk-high-soft);
   --color-risk-medium: var(--risk-medium);

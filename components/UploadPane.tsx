@@ -19,13 +19,7 @@ const MAX_MB = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024))
  * for the reader's sake — an immediate, specific message instead of a round
  * trip — and the server check is the one that actually guards the endpoint.
  */
-export function UploadPane({
-  onSelect,
-  busy,
-}: {
-  onSelect: (file: File) => void
-  busy: boolean
-}) {
+export function UploadPane({ onSelect, busy }: { onSelect: (file: File) => void; busy: boolean }) {
   const inputId = useId()
   const [localError, setLocalError] = useState<string | null>(null)
   const [loadingSample, setLoadingSample] = useState<string | null>(null)
@@ -80,7 +74,7 @@ export function UploadPane({
           type="file"
           accept="application/pdf,.pdf"
           disabled={busy}
-          className="mt-4 block w-full cursor-pointer text-sm text-muted file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-accent file:px-4 file:py-2 file:text-sm file:font-medium file:text-white disabled:cursor-not-allowed"
+          className="mt-4 block w-full cursor-pointer text-sm text-muted file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-accent file:px-4 file:py-2 file:text-sm file:font-medium file:text-accent-foreground disabled:cursor-not-allowed"
           onChange={(event) => {
             const file = event.target.files?.[0]
             if (file) handleFile(file)
