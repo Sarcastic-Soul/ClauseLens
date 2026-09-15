@@ -1,28 +1,41 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { AppError } from '@/lib/errors'
-import { clientKey, enforceRateLimit, resetRateLimits } from '@/lib/rate-limit'
+import { clientKey, enforceInMemory, resetRateLimits } from '@/lib/rate-limit'
 
-describe('enforceRateLimit', () => {
+/**
+ * The shared counter is one atomic SQL statement, so what is worth testing there
+ * is the statement, against a real Postgres — not a mock that would only assert
+ * the query string back at itself. These cover the single-process path used in
+ * development and when a query fails.
+ */
+describe('enforceInMemory', () => {
   beforeEach(resetRateLimits)
 
   it('allows requests up to the limit and rejects the next one', () => {
     const now = 1_000
 
-    expect(() => enforceRateLimit('k', 2, now)).not.toThrow()
-    expect(() => enforceRateLimit('k', 2, now)).not.toThrow()
-    expect(() => enforceRateLimit('k', 2, now)).toThrow(AppError)
+    expect(() => enforceInMemory('k', 2, now)).not.toThrow()
+    expect(() => enforceInMemory('k', 2, now)).not.toThrow()
+    expect(() => enforceInMemory('k', 2, now)).toThrow(AppError)
   })
 
   it('starts a fresh window once the previous one expires', () => {
-    enforceRateLimit('k', 1, 0)
-    expect(() => enforceRateLimit('k', 1, 30_000)).toThrow(AppError)
-    expect(() => enforceRateLimit('k', 1, 60_000)).not.toThrow()
+    enforceInMemory('k', 1, 0)
+    expect(() => enforceInMemory('k', 1, 30_000)).toThrow(AppError)
+    expect(() => enforceInMemory('k', 1, 60_000)).not.toThrow()
   })
 
   it('tracks callers independently', () => {
-    enforceRateLimit('a', 1, 0)
-    expect(() => enforceRateLimit('b', 1, 0)).not.toThrow()
+    enforceInMemory('a', 1, 0)
+    expect(() => enforceInMemory('b', 1, 0)).not.toThrow()
+  })
+
+  it('forgets a caller whose window has long expired', () => {
+    enforceInMemory('stale', 1, 0)
+    enforceInMemory('fresh', 1, 600_000)
+
+    expect(() => enforceInMemory('stale', 1, 600_000)).not.toThrow()
   })
 })
 
@@ -33,6 +46,14 @@ describe('clientKey', () => {
     })
 
     expect(clientKey(request, 'analyze')).toBe('analyze:203.0.113.7')
+  })
+
+  it('separates the same caller across routes', () => {
+    const request = new Request('https://example.test', {
+      headers: { 'x-forwarded-for': '203.0.113.7' },
+    })
+
+    expect(clientKey(request, 'ask')).not.toBe(clientKey(request, 'compare'))
   })
 
   it('falls back to a shared bucket when the header is absent', () => {

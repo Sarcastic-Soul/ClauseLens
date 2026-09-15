@@ -24,7 +24,7 @@ const REQUESTS_PER_MINUTE = 10
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    enforceRateLimit(clientKey(request, 'ask'), REQUESTS_PER_MINUTE)
+    await enforceRateLimit(clientKey(request, 'ask'), REQUESTS_PER_MINUTE)
 
     const body = await request.json().catch(() => null)
     const parsed = askRequestSchema.safeParse(body)

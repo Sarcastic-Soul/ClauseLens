@@ -61,6 +61,23 @@ export const clauses = pgTable('clauses', {
   obligationOn: text('obligation_on').$type<ObligationParty>().notNull(),
 })
 
+/**
+ * One row per caller per route, holding the current window. Rate limiting lives
+ * in the database because serverless instances share nothing in memory: a limit
+ * counted per instance is really a limit multiplied by however many instances
+ * happen to be warm, which is not a number this application controls.
+ *
+ * A single atomic upsert does the counting, so two instances incrementing the
+ * same row at the same moment cannot both read a stale count.
+ */
+export const rateLimits = pgTable('rate_limits', {
+  /** Route and caller, e.g. `analyze:203.0.113.7`. */
+  key: text('key').primaryKey(),
+  count: integer('count').notNull(),
+  /** When the current window ends and the count starts again. */
+  resetAt: timestamp('reset_at', { withTimezone: true }).notNull(),
+})
+
 export const feedback = pgTable('feedback', {
   id: uuid('id').primaryKey().defaultRandom(),
   rating: integer('rating').notNull(),

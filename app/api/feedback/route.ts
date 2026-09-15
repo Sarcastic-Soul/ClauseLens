@@ -12,7 +12,7 @@ const REQUESTS_PER_MINUTE = 3
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    enforceRateLimit(clientKey(request, 'feedback'), REQUESTS_PER_MINUTE)
+    await enforceRateLimit(clientKey(request, 'feedback'), REQUESTS_PER_MINUTE)
 
     const body = await request.json().catch(() => null)
     const parsed = feedbackRequestSchema.safeParse(body)

@@ -171,7 +171,7 @@ lib/
   grounding.ts      resolves what a follow-up call answers over
   clause-context.ts grounding block shared by client and server (pure)
   analysis-store.ts persistence, tolerant of an absent database
-  rate-limit.ts     per-IP windows on the model-calling routes
+  rate-limit.ts     per-IP windows, counted in Postgres across instances
   errors.ts         typed failures mapped to safe user-facing messages
 ```
 
@@ -181,7 +181,7 @@ lib/
 |---|---|
 | Newest Flash models return 503 on the free tier | Comma-separated model chain with failover |
 | Neon suspends idle computes after 5 minutes | One automatic retry on the first query |
-| Public endpoints proxying a metered API | Per-IP rate limits on every model-calling route |
+| Public endpoints proxying a metered API | Per-IP rate limits on every model-calling route, counted in Postgres so every serverless instance shares one window |
 | Vercel caps request bodies at 4.5 MB | 4 MB upload cap, enforced in the browser and again on the server |
 | A renamed file claiming to be a PDF | `%PDF-` magic bytes checked server-side |
 | A document that is not a contract | Reported as `unrecognised` with no clauses invented |
@@ -203,9 +203,10 @@ development, and `scripts/migrate.mjs` does the same. Production is left on the 
 ## Security
 
 The uploaded PDF is never stored, secrets are server-side only, every input is validated with Zod
-before use, uploaded documents are treated as untrusted input to the model, and the public
-model-calling routes are rate limited. The threat model — including the two limitations that were
-accepted rather than solved — is written up in [`SECURITY.md`](SECURITY.md).
+before use, uploaded documents are treated as untrusted input to the model, follow-up calls answer
+only over clause context this server signed, and the public model-calling routes are rate limited
+against a counter shared by every serverless instance. The threat model is written up in
+[`SECURITY.md`](SECURITY.md).
 
 ## Accessibility
 

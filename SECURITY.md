@@ -76,6 +76,12 @@ would expose it to the next.
 a paid API. Each enforces a per-IP, per-minute limit (`lib/rate-limit.ts`), keyed on
 `x-forwarded-for`.
 
+The counter is a row in Postgres, not a map in memory. Serverless instances share no memory, so an
+in-process count is enforced once per instance and the real ceiling becomes the configured limit
+multiplied by however many instances happen to be warm. One row per caller, incremented by a single
+atomic upsert, gives every instance the same count: eight simultaneous requests against a limit of
+five are five allowed and three refused, whichever instances they land on.
+
 **Grounded endpoints answer only over context this server produced.** `/api/ask` and
 `/api/checklist` need the document's clauses. A saved analysis is addressed by share id and read
 from the database, so nothing the caller sends is trusted. An analysis that was never saved — the
@@ -93,14 +99,6 @@ HKDF-SHA256, so the protection is on by default rather than waiting for one more
 variable to be remembered. The derivation is one-way; an HMAC made with the derived key does not
 expose the API key.
 
-One honest limitation remains:
-
-- **The rate limiter is per-instance and in-memory.** Serverless instances do not share state, so
-  the effective limit is looser than the configured one. It stops casual abuse of a public endpoint;
-  it is not a defence against a distributed attacker. A shared store — Redis, or Vercel KV — would
-  fix it, and is the right change if this ever left pilot scale. It is not built now because it adds
-  a service to the deployment for a pilot whose realistic worst case is one person clicking quickly.
-
 ## Data retention
 
 - **The uploaded PDF is never written anywhere.** It is read into memory, base64-encoded, sent to
@@ -115,8 +113,9 @@ One honest limitation remains:
   identical bytes — but neither learns what the other called their copy.
 - **Comparisons are not stored at all.** They are about a pairing rather than a document, so there
   is nothing to cache and no share link to issue.
-- **Not stored:** the file, the file's bytes, questions, answers, IP addresses, or any identifier
-  for the visitor.
+- **Not stored:** the file, the file's bytes, questions, answers, or any identifier for the visitor
+  beyond the rate-limit row, which holds a caller key and a count for sixty seconds and is then
+  overwritten or deleted.
 
 ## Error handling
 

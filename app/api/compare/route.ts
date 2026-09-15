@@ -30,7 +30,7 @@ const REQUESTS_PER_MINUTE = 3
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    enforceRateLimit(clientKey(request, 'compare'), REQUESTS_PER_MINUTE)
+    await enforceRateLimit(clientKey(request, 'compare'), REQUESTS_PER_MINUTE)
 
     const form = await request.formData()
     const [first, second] = [form.get('first'), form.get('second')]
