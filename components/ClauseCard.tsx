@@ -35,14 +35,14 @@ export function ClauseCard({ clause }: { clause: Clause }) {
 
       <div className="space-y-4 border-t border-border px-4 pb-4 pt-4 text-sm">
         <div>
-          <h4 className="text-xs font-medium uppercase tracking-wide text-muted">Why it matters</h4>
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted">Why it matters</h3>
           <p className="mt-1">{clause.riskReason}</p>
         </div>
 
         <div>
-          <h4 className="text-xs font-medium uppercase tracking-wide text-muted">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted">
             What the document says
-          </h4>
+          </h3>
           <blockquote className="mt-1 border-l-2 border-border pl-3 font-mono text-xs leading-relaxed text-muted">
             {clause.sourceQuote}
           </blockquote>
