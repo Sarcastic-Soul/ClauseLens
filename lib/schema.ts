@@ -59,16 +59,6 @@ export function withClauseIds(analysis: ExtractedAnalysis): Analysis {
   }
 }
 
-export const answerSchema = z.object({
-  answerable: z
-    .boolean()
-    .describe('False when the document does not contain enough information to answer.'),
-  answer: z.string().min(1).describe('The answer, grounded only in the document.'),
-  citedClauseIds: z.array(z.string()).describe('Ids of the clauses the answer relies on.'),
-})
-
-export type Answer = z.infer<typeof answerSchema>
-
 export const shareIdSchema = z
   .string()
   .regex(/^[A-Za-z0-9_-]{12,32}$/, 'Malformed share id')
