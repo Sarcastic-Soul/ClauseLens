@@ -56,7 +56,23 @@ describe('clientKey', () => {
     expect(clientKey(request, 'ask')).not.toBe(clientKey(request, 'compare'))
   })
 
-  it('falls back to a shared bucket when the header is absent', () => {
-    expect(clientKey(new Request('https://example.test'), 'ask')).toBe('ask:unknown')
+  it('falls back to x-real-ip behind a proxy that sets only that', () => {
+    const request = new Request('https://example.test', {
+      headers: { 'x-real-ip': '198.51.100.4' },
+    })
+
+    expect(clientKey(request, 'analyze')).toBe('analyze:198.51.100.4')
+  })
+
+  it('prefers x-forwarded-for when both headers are present', () => {
+    const request = new Request('https://example.test', {
+      headers: { 'x-forwarded-for': '203.0.113.7', 'x-real-ip': '198.51.100.4' },
+    })
+
+    expect(clientKey(request, 'analyze')).toBe('analyze:203.0.113.7')
+  })
+
+  it('falls back to a shared bucket when neither header is present', () => {
+    expect(clientKey(new Request('https://example.test'), 'ask')).toBe('ask:unidentified')
   })
 })

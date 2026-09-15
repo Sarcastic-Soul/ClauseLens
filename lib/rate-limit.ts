@@ -97,11 +97,21 @@ export async function enforceRateLimit(key: string, limit: number): Promise<void
   if (count > limit) throw new AppError(ERROR_CODES.RATE_LIMITED, `key=${key} count=${count}`)
 }
 
-/** Identifies the caller. Falls back to a shared bucket. */
+/**
+ * Identifies the caller. Vercel always sets `x-forwarded-for`; `x-real-ip` is
+ * what most other proxies set, and is tried next so the limit still counts per
+ * caller when the app is run behind one.
+ *
+ * With neither header there is no caller identity to count, and everyone lands
+ * in one shared bucket. That is deliberate: an unidentifiable caller sharing a
+ * limit is a worse experience than a private one, but letting unidentifiable
+ * requests through unbounded would leave the metered API unprotected by exactly
+ * the caller who declined to say who they are.
+ */
 export function clientKey(request: Request, route: string): string {
-  const forwarded = request.headers.get('x-forwarded-for')
-  const ip = forwarded?.split(',')[0]?.trim() || 'unknown'
-  return `${route}:${ip}`
+  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  const real = request.headers.get('x-real-ip')?.trim()
+  return `${route}:${forwarded || real || 'unidentified'}`
 }
 
 /* -------------------------------------------------------------------------- */
