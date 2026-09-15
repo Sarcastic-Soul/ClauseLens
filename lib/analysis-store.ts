@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 import { desc, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
@@ -62,6 +62,14 @@ export function newShareId(): string {
 /**
  * Persists an analysis and returns its share id, or null when persistence is
  * unavailable. Never throws: the caller has a result worth showing either way.
+ *
+ * The analysis row and its clauses are written in one batch, which the Neon
+ * driver sends as a single transaction. Written separately, a clause insert
+ * that failed would leave an analysis row behind carrying the document's
+ * content hash — and the next upload of that document would hit the cache and
+ * be served an analysis with no clauses in it, without a model call to notice
+ * the gap. The id is generated here rather than returned by the first insert,
+ * because statements in a batch cannot read each other's results.
  */
 export async function saveAnalysis(input: {
   analysis: Analysis
@@ -73,38 +81,39 @@ export async function saveAnalysis(input: {
   if (!database) return null
 
   const shareId = newShareId()
+  const id = randomUUID()
+
+  const insertAnalysis = database.insert(schema.analyses).values({
+    id,
+    shareId,
+    contentHash: input.contentHash,
+    fileName: input.fileName,
+    docType: input.analysis.docType,
+    summary: input.analysis.summary,
+    keyPoints: input.analysis.keyPoints,
+    clauseContext: toClauseContext(input.analysis.clauses),
+    modelId: input.modelId,
+  })
+
+  const clauseRows = input.analysis.clauses.map((clause, index) => ({
+    analysisId: id,
+    ordinal: index + 1,
+    heading: clause.heading,
+    sourceQuote: clause.sourceQuote,
+    plainLanguage: clause.plainLanguage,
+    risk: clause.risk,
+    riskReason: clause.riskReason,
+    obligationOn: clause.obligationOn,
+  }))
 
   try {
-    const [row] = await withRetry(() =>
-      database
-        .insert(schema.analyses)
-        .values({
-          shareId,
-          contentHash: input.contentHash,
-          fileName: input.fileName,
-          docType: input.analysis.docType,
-          summary: input.analysis.summary,
-          keyPoints: input.analysis.keyPoints,
-          clauseContext: toClauseContext(input.analysis.clauses),
-          modelId: input.modelId,
-        })
-        .returning({ id: schema.analyses.id }),
-    )
-
-    if (input.analysis.clauses.length > 0) {
-      await database.insert(schema.clauses).values(
-        input.analysis.clauses.map((clause, index) => ({
-          analysisId: row.id,
-          ordinal: index + 1,
-          heading: clause.heading,
-          sourceQuote: clause.sourceQuote,
-          plainLanguage: clause.plainLanguage,
-          risk: clause.risk,
-          riskReason: clause.riskReason,
-          obligationOn: clause.obligationOn,
-        })),
-      )
-    }
+    await withRetry(async () => {
+      if (clauseRows.length === 0) {
+        await database.batch([insertAnalysis])
+        return
+      }
+      await database.batch([insertAnalysis, database.insert(schema.clauses).values(clauseRows)])
+    })
 
     return shareId
   } catch (error) {
