@@ -40,29 +40,31 @@ export default function Home() {
         </p>
       </header>
 
-      <div className="mt-8 space-y-6">
-        <Disclaimer />
-        <UploadPane onSelect={analyse} busy={status === 'analysing'} />
+      <main>
+        <div className="mt-8 space-y-6">
+          <Disclaimer />
+          <UploadPane onSelect={analyse} busy={status === 'analysing'} />
 
-        <div aria-live="polite" aria-atomic="true">
-          {status === 'analysing' && <AnalysingNotice />}
-          {status === 'failed' && error && (
-            <p role="alert" className="text-sm text-risk-high">
-              {error}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {status === 'ready' && result && (
-        <main className="mt-10 border-t border-border pt-8">
-          <AnalysisView analysis={result.analysis} shareId={result.shareId} />
-
-          <div className="mt-12 border-t border-border pt-8">
-            <FeedbackWidget />
+          <div aria-live="polite" aria-atomic="true">
+            {status === 'analysing' && <AnalysingNotice />}
+            {status === 'failed' && error && (
+              <p role="alert" className="text-sm text-risk-high">
+                {error}
+              </p>
+            )}
           </div>
-        </main>
-      )}
+        </div>
+
+        {status === 'ready' && result && (
+          <div className="mt-10 border-t border-border pt-8">
+            <AnalysisView analysis={result.analysis} shareId={result.shareId} />
+
+            <div className="mt-12 border-t border-border pt-8">
+              <FeedbackWidget />
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   )
 }

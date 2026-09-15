@@ -53,15 +53,15 @@ export async function saveAnalysis(input: {
     const [row] = await withRetry(() =>
       database
         .insert(schema.analyses)
-      .values({
-        shareId,
-        fileName: input.fileName,
-        docType: input.analysis.docType,
-        summary: input.analysis.summary,
-        keyPoints: input.analysis.keyPoints,
-        clauseContext: toClauseContext(input.analysis.clauses),
-        modelId: input.modelId,
-      })
+        .values({
+          shareId,
+          fileName: input.fileName,
+          docType: input.analysis.docType,
+          summary: input.analysis.summary,
+          keyPoints: input.analysis.keyPoints,
+          clauseContext: toClauseContext(input.analysis.clauses),
+          modelId: input.modelId,
+        })
         .returning({ id: schema.analyses.id }),
     )
 

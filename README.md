@@ -16,6 +16,24 @@ Built for **PromptWars: Virtual (Exclusive Edition)** against the problem statem
 states what you should legally do, and the boundary is enforced in the prompts themselves, not only
 in a banner.
 
+## Live
+
+**<https://clauselens-mu.vercel.app>** — no login, no signup. Upload a PDF, or use one of the
+one-click samples on the page.
+
+Three analyses are already saved, so the product can be read without uploading anything. Each was
+produced by the same code path from a different document, which is the quickest way to see that the
+output tracks the input rather than being fixed:
+
+| Document | Analysis | What it shows |
+|---|---|---|
+| Residential rent agreement | [`/a/0xd2pGQQsYyj8876`](https://clauselens-mu.vercel.app/a/0xd2pGQQsYyj8876) | 12 clauses; a ten-month security deposit and a lock-in period flagged high |
+| Employment offer letter | [`/a/_nnDJT7eGYjZrZKx`](https://clauselens-mu.vercel.app/a/_nnDJT7eGYjZrZKx) | 9 clauses; a joining-bonus clawback and a notice-period buyout flagged high |
+| Freelance contractor agreement | [`/a/ClVIjc_HMf2VBmcc`](https://clauselens-mu.vercel.app/a/ClVIjc_HMf2VBmcc) | 11 clauses; IP assignment, indemnity and payment timelines flagged high |
+
+Follow-up questions work on a saved analysis too — the clauses are the grounding context, so a
+shared link is a complete, usable copy of the tool.
+
 ---
 
 ## How it addresses the problem statement
@@ -163,6 +181,13 @@ Neon's hostnames resolve to both IPv4 and IPv6. On a network with no working IPv
 races the IPv6 address and the connection times out as a bare `fetch failed`, which reads like a
 credentials problem and is not. `instrumentation.ts` prefers IPv4 and disables that race in
 development, and `scripts/migrate.mjs` does the same. Production is left on the Node defaults.
+
+## Security
+
+The uploaded PDF is never stored, secrets are server-side only, every input is validated with Zod
+before use, uploaded documents are treated as untrusted input to the model, and the public
+model-calling routes are rate limited. The threat model — including the two limitations that were
+accepted rather than solved — is written up in [`SECURITY.md`](SECURITY.md).
 
 ## Accessibility
 
