@@ -8,6 +8,13 @@
       "when": 1789409982316,
       "tag": "0000_blue_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789455405265,
+      "tag": "0001_crazy_gertrude_yorkes",
+      "breakpoints": true
     }
   ]
 }

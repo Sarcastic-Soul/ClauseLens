@@ -117,6 +117,9 @@ saved afterwards, so a database failure costs the share link, not the result on 
 **The uploaded PDF is never stored.** Only the extracted analysis and the clause text needed to
 ground follow-up questions are persisted.
 
+**Questions and answers are never stored.** A share link is readable by anyone who has it, so
+recording what one visitor asked would expose it to the next.
+
 ### Layout
 
 ```
@@ -156,9 +159,10 @@ from the original rather than summarised loosely.
 
 ### Local networks without IPv6
 
-Neon's hostnames resolve to IPv6 and IPv4. On a network with no working IPv6 route the first
-connection fails with a bare `fetch failed`, which reads like a credentials problem and is not.
-`instrumentation.ts` prefers IPv4 in development for that reason.
+Neon's hostnames resolve to both IPv4 and IPv6. On a network with no working IPv6 route, Node still
+races the IPv6 address and the connection times out as a bare `fetch failed`, which reads like a
+credentials problem and is not. `instrumentation.ts` prefers IPv4 and disables that race in
+development, and `scripts/migrate.mjs` does the same. Production is left on the Node defaults.
 
 ## Accessibility
 

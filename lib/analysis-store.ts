@@ -88,6 +88,30 @@ export async function saveAnalysis(input: {
 }
 
 /**
+ * Reads only the grounding block for a saved analysis. Answering a question
+ * needs nothing else, so this avoids loading every clause row to rebuild text
+ * that was already serialised at save time.
+ */
+export async function loadClauseContext(shareId: string): Promise<string | null> {
+  const database = db()
+  if (!database) return null
+
+  try {
+    const [row] = await withRetry(() =>
+      database
+        .select({ clauseContext: schema.analyses.clauseContext })
+        .from(schema.analyses)
+        .where(eq(schema.analyses.shareId, shareId))
+        .limit(1),
+    )
+    return row?.clauseContext ?? null
+  } catch (error) {
+    console.error('[loadClauseContext]', error)
+    throw new AppError(ERROR_CODES.PERSISTENCE_UNAVAILABLE, 'Could not read the saved analysis')
+  }
+}
+
+/**
  * Loads a shared analysis. Returns null when the id is unknown; throws a typed
  * `PERSISTENCE_UNAVAILABLE` when the database itself cannot be reached, so a
  * missing link and a broken database do not look the same to the caller.

@@ -1,5 +1,4 @@
-import { loadAnalysis } from '@/lib/analysis-store'
-import { toClauseContext } from '@/lib/clause-context'
+import { loadClauseContext } from '@/lib/analysis-store'
 import { env } from '@/lib/env'
 import { AppError, ERROR_CODES, toErrorResponse } from '@/lib/errors'
 import { generateTextStream } from '@/lib/gemini'
@@ -61,9 +60,9 @@ async function resolveClauseContext({
   if (clauseContext) return clauseContext
 
   if (shareId) {
-    const stored = await loadAnalysis(shareId)
+    const stored = await loadClauseContext(shareId)
     if (!stored) throw new AppError(ERROR_CODES.NOT_FOUND, `No analysis for share id ${shareId}`)
-    return toClauseContext(stored.clauses)
+    return stored
   }
 
   throw new AppError(ERROR_CODES.INVALID_INPUT, 'Neither clauseContext nor shareId was supplied')
