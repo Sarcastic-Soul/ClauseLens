@@ -147,6 +147,14 @@ export async function generateStructured<T extends z.ZodType>({
 /**
  * Streams plain text. Used for question answering so the UI fills in as the
  * answer arrives rather than sitting on a spinner.
+ *
+ * The first chunk is pulled *inside* the failover attempt rather than after it.
+ * `generateContentStream` resolves once the request is accepted, before the
+ * model has produced anything, so an overloaded model reports 503 during
+ * iteration — failing over only on the opening call would never fail over at
+ * all. Once a chunk has been handed to the caller the answer is already partly
+ * on screen, so a later failure ends the stream instead of restarting it on
+ * another model and repeating text the reader has seen.
  */
 export async function* generateTextStream({
   model,
@@ -157,18 +165,27 @@ export async function* generateTextStream({
   systemInstruction: string
   prompt: string
 }): AsyncGenerator<string> {
-  const stream = await withModelFailover(model, (modelId) =>
-    call(() =>
-      genai().models.generateContentStream({
+  const { iterator, first } = await withModelFailover(model, (modelId) =>
+    call(async () => {
+      const stream = await genai().models.generateContentStream({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: { systemInstruction, temperature: TEMPERATURE },
-      }),
-    ),
+      })
+
+      const iterator = stream[Symbol.asyncIterator]()
+      return { iterator, first: await iterator.next() }
+    }),
   )
 
-  for await (const chunk of stream) {
-    if (chunk.text) yield chunk.text
+  try {
+    // Failures from here on are still mapped to our error codes, so the route
+    // logs a typed failure rather than a raw SDK error.
+    for (let step = first; !step.done; step = await call(() => iterator.next())) {
+      if (step.value.text) yield step.value.text
+    }
+  } finally {
+    await iterator.return?.(undefined)
   }
 }
 
