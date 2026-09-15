@@ -63,18 +63,24 @@ export function AskBox({ clauses, grounding }: { clauses: Clause[]; grounding: G
         </p>
       </div>
 
-      <ol className="space-y-4">
+      <ol className="space-y-4 empty:hidden">
         {history.map((exchange, index) => (
           <li key={`${exchange.question}-${index}`}>
             <AnswerBlock question={exchange.question} parsed={exchange.parsed} clauses={clauses} />
           </li>
         ))}
-        {asking && streaming && (
-          <li>
-            <AnswerBlock question={asking} parsed={streaming} clauses={clauses} streaming />
-          </li>
-        )}
       </ol>
+
+      {/*
+        The live region is always in the DOM, empty between questions. A region
+        that appears at the same moment as its content is usually not announced
+        at all: screen readers watch regions they already know about.
+      */}
+      <div aria-live="polite" aria-busy={busy} className="empty:hidden">
+        {asking && streaming && (
+          <AnswerBlock question={asking} parsed={streaming} clauses={clauses} />
+        )}
+      </div>
 
       <form onSubmit={submit} className="space-y-2">
         <label htmlFor={inputId} className="sr-only">
@@ -116,21 +122,17 @@ function AnswerBlock({
   question,
   parsed,
   clauses,
-  streaming = false,
 }: {
   question: string
   parsed: ParsedAnswer
   clauses: Clause[]
-  streaming?: boolean
 }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <p className="text-sm font-medium">{question}</p>
-      <div aria-live="polite" aria-busy={streaming}>
-        <p className="mt-2 text-sm leading-relaxed text-muted">
-          {parsed.answerable ? parsed.text : `Not in this document. ${parsed.text}`}
-        </p>
-      </div>
+      <p className="mt-2 text-sm leading-relaxed text-muted">
+        {parsed.answerable ? parsed.text : `Not in this document. ${parsed.text}`}
+      </p>
       {parsed.citedClauseIds.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-1.5">
           {parsed.citedClauseIds.map((id) => {
