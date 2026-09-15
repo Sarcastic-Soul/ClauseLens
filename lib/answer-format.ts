@@ -45,5 +45,9 @@ export function extractCitedClauseIds(raw: string): string[] {
 }
 
 function stripCitations(raw: string): string {
-  return raw.replace(CITATION_PATTERN, '').replace(/[ \t]+([.,;:])/g, '$1').replace(/[ \t]{2,}/g, ' ').trim()
+  return raw
+    .replace(CITATION_PATTERN, '')
+    .replace(/[ \t]+([.,;:])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
 }

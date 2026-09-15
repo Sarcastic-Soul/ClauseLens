@@ -6,7 +6,13 @@ import { cn } from '@/lib/utils'
  * every row is labelled in words as well as position. Colour is never the only
  * signal here, same rule as the risk badges.
  */
-function FavoursBadge({ favours, names }: { favours: Favours; names: { first: string; second: string } }) {
+function FavoursBadge({
+  favours,
+  names,
+}: {
+  favours: Favours
+  names: { first: string; second: string }
+}) {
   const LABEL: Record<Favours, string> = {
     first: `Better in ${names.first}`,
     second: `Better in ${names.second}`,
@@ -106,7 +112,5 @@ export function ComparisonView({
 /** File names are shown as column headings, so a long one has to be cut. */
 function shorten(fileName: string): string {
   const withoutExtension = fileName.replace(/\.pdf$/i, '')
-  return withoutExtension.length > 28
-    ? `${withoutExtension.slice(0, 27)}…`
-    : withoutExtension
+  return withoutExtension.length > 28 ? `${withoutExtension.slice(0, 27)}…` : withoutExtension
 }

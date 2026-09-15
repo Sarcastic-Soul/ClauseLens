@@ -31,9 +31,7 @@ export function ChecklistPanel({
     try {
       setChecklist(await fetchChecklist(grounding))
     } catch (caught) {
-      setError(
-        caught instanceof ApiError ? caught.message : 'The checklist could not be prepared.',
-      )
+      setError(caught instanceof ApiError ? caught.message : 'The checklist could not be prepared.')
     } finally {
       setBusy(false)
     }

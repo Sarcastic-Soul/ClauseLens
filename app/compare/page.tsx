@@ -40,8 +40,8 @@ export default function ComparePage() {
           Compare two documents
         </h1>
         <p className="mt-2 max-w-xl text-muted">
-          Two versions of an agreement, or two offers you are choosing between. You get what
-          differs and which side each difference favours — judged from yours.
+          Two versions of an agreement, or two offers you are choosing between. You get what differs
+          and which side each difference favours — judged from yours.
         </p>
       </header>
 

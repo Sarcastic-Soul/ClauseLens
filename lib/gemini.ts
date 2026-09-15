@@ -38,10 +38,7 @@ export function parseModelChain(spec: string): string[] {
 }
 
 /** Codes worth trying a different model for. A bad request would fail identically. */
-const FAILOVER_CODES: ErrorCode[] = [
-  ERROR_CODES.MODEL_UNAVAILABLE,
-  ERROR_CODES.MODEL_RATE_LIMITED,
-]
+const FAILOVER_CODES: ErrorCode[] = [ERROR_CODES.MODEL_UNAVAILABLE, ERROR_CODES.MODEL_RATE_LIMITED]
 
 /**
  * Runs `attempt` against each model in the chain until one succeeds. The error
@@ -63,8 +60,7 @@ export async function withModelFailover<T>(
       return await attempt(model)
     } catch (error) {
       lastError = error
-      const failedOver =
-        error instanceof AppError && FAILOVER_CODES.includes(error.code)
+      const failedOver = error instanceof AppError && FAILOVER_CODES.includes(error.code)
       if (!failedOver) throw error
       console.warn(`[gemini] ${model} unavailable, trying next model`)
     }

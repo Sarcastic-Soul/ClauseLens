@@ -1,0 +1,8 @@
+.next
+drizzle
+pnpm-lock.yaml
+public
+# Prose is wrapped by hand to keep diffs readable; the sample documents are
+# generated input, not source.
+*.md
+samples

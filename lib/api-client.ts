@@ -21,8 +21,7 @@ export type AnalyzeResult = {
  * analysis was saved, or the clause context and its token when it was not.
  */
 export type Grounding =
-  | { shareId: string }
-  | { clauseContext: string; contextToken: string; docType: string }
+  { shareId: string } | { clauseContext: string; contextToken: string; docType: string }
 
 export class ApiError extends Error {
   readonly code: string
@@ -89,10 +88,7 @@ export async function compareDocuments(
   return unwrap<CompareResult>(response)
 }
 
-export async function fetchChecklist(
-  body: Grounding,
-  signal?: AbortSignal,
-): Promise<Checklist> {
+export async function fetchChecklist(body: Grounding, signal?: AbortSignal): Promise<Checklist> {
   const response = await fetch('/api/checklist', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

@@ -67,7 +67,12 @@ export async function POST(request: Request): Promise<Response> {
     })
 
     const analysis = withClauseIds(extracted)
-    const shareId = await saveAnalysis({ analysis, fileName: file.name, modelId: model, contentHash })
+    const shareId = await saveAnalysis({
+      analysis,
+      fileName: file.name,
+      modelId: model,
+      contentHash,
+    })
 
     return respond(analysis, shareId, file.name, false)
   } catch (error) {

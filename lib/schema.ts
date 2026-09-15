@@ -36,7 +36,9 @@ export const extractedAnalysisSchema = z.object({
   docType: z
     .string()
     .min(1)
-    .describe(`Type of document, e.g. "Residential rental agreement". "${UNRECOGNISED_DOC_TYPE}" if it is not a legal agreement.`),
+    .describe(
+      `Type of document, e.g. "Residential rental agreement". "${UNRECOGNISED_DOC_TYPE}" if it is not a legal agreement.`,
+    ),
   summary: z.string().min(1).describe('Two or three sentences on what this document does.'),
   keyPoints: z
     .array(z.string().min(1))
@@ -59,9 +61,7 @@ export function withClauseIds(analysis: ExtractedAnalysis): Analysis {
   }
 }
 
-export const shareIdSchema = z
-  .string()
-  .regex(/^[A-Za-z0-9_-]{12,32}$/, 'Malformed share id')
+export const shareIdSchema = z.string().regex(/^[A-Za-z0-9_-]{12,32}$/, 'Malformed share id')
 
 /** An HMAC of the clause context, issued by `/api/analyze`. Base64url, so short. */
 export const contextTokenSchema = z.string().min(16).max(200)
@@ -131,11 +131,15 @@ export const comparisonSchema = z.object({
     .array(
       z.object({
         topic: z.string().min(1).describe('What the difference is about, e.g. "Notice period".'),
-        inFirst: z.string().min(1).describe('What the first document says. "Not addressed" if absent.'),
-        inSecond: z.string().min(1).describe('What the second document says. "Not addressed" if absent.'),
-        favours: z
-          .enum(FAVOURS)
-          .describe('Which document is better for the reader on this point.'),
+        inFirst: z
+          .string()
+          .min(1)
+          .describe('What the first document says. "Not addressed" if absent.'),
+        inSecond: z
+          .string()
+          .min(1)
+          .describe('What the second document says. "Not addressed" if absent.'),
+        favours: z.enum(FAVOURS).describe('Which document is better for the reader on this point.'),
         why: z.string().min(1).describe('One sentence on what the difference costs or saves.'),
       }),
     )

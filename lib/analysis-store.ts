@@ -201,11 +201,7 @@ async function read(
   shareId: string,
 ): Promise<StoredAnalysis | null> {
   const [analysis] = await withRetry(() =>
-    database
-      .select()
-      .from(schema.analyses)
-      .where(eq(schema.analyses.shareId, shareId))
-      .limit(1),
+    database.select().from(schema.analyses).where(eq(schema.analyses.shareId, shareId)).limit(1),
   )
 
   if (!analysis) return null
