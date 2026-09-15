@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
@@ -5,6 +6,15 @@ import { AnalysisView } from '@/components/AnalysisView'
 import { Disclaimer } from '@/components/Disclaimer'
 import { loadAnalysis } from '@/lib/analysis-store'
 import { shareIdSchema } from '@/lib/schema'
+
+/**
+ * A share link is unguessable, and that is the only thing keeping a saved
+ * analysis private. Indexing one would undo that the moment a visitor pasted
+ * the link somewhere a crawler can reach.
+ */
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, nocache: true },
+}
 
 /** A saved analysis, opened without re-uploading the document. */
 export default async function SharedAnalysisPage({ params }: PageProps<'/a/[shareId]'>) {
