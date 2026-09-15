@@ -1,5 +1,12 @@
+# Dependencies allowed to run install scripts. pnpm blocks these by default and
+# fails the install until each is decided, so an unreviewed postinstall cannot
+# execute on a build machine.
 allowBuilds:
-  '@google/genai': set this to true or false
-  esbuild: set this to true or false
-  protobufjs: set this to true or false
-  unrs-resolver: set this to true or false
+  # Downloads the platform-native binary. Without it, next build and vitest fail.
+  esbuild: true
+  # Native resolver binding used by the ESLint TypeScript resolver.
+  unrs-resolver: true
+  # Generates protobuf type definitions used by the Gemini SDK transport.
+  protobufjs: true
+  # No build step of its own; approved so the install does not stall on it.
+  '@google/genai': true
