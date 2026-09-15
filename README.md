@@ -35,6 +35,11 @@ output tracks the input rather than being fixed:
 Follow-up questions work on a saved analysis too — the clauses are the grounding context, so a
 shared link is a complete, usable copy of the tool.
 
+On [`/compare`](https://clauselens-mu.vercel.app/compare), the "Two rent agreements" sample pair
+puts the document above against the same agreement drafted fairly: a two-month deposit instead of
+ten, a mutual lock-in, repairs on the landlord, deductions itemised. Eleven differences come back,
+each labelled with the side it favours.
+
 ---
 
 ## How it addresses the problem statement
