@@ -197,8 +197,9 @@ from the original rather than summarised loosely.
 
 Neon's hostnames resolve to both IPv4 and IPv6. On a network with no working IPv6 route, Node still
 races the IPv6 address and the connection times out as a bare `fetch failed`, which reads like a
-credentials problem and is not. `instrumentation.ts` prefers IPv4 and disables that race in
-development, and `scripts/migrate.mjs` does the same. Production is left on the Node defaults.
+credentials problem and is not. `instrumentation.ts` loads `instrumentation-node.ts` in development, which
+prefers IPv4 and disables that race; `scripts/migrate.mjs` does the same. Production is left on
+the Node defaults.
 
 ## Security
 
