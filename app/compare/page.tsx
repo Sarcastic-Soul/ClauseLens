@@ -45,7 +45,7 @@ export default function ComparePage() {
         </p>
       </header>
 
-      <main>
+      <main id="main-content">
         <div className="mt-8 space-y-6">
           <Disclaimer />
           <ComparePane onCompare={compare} busy={status === 'comparing'} />

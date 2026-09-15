@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 export default function NotFound() {
   return (
-    <div className="mx-auto max-w-3xl px-5 py-24">
+    <main id="main-content" className="mx-auto max-w-3xl px-5 py-24">
       <h1 className="text-2xl font-semibold tracking-tight">This analysis does not exist</h1>
       <p className="mt-2 text-muted">
         The link may be wrong, or the analysis was never saved. Upload a document to start a new
@@ -14,6 +14,6 @@ export default function NotFound() {
       >
         Analyse a document
       </Link>
-    </div>
+    </main>
   )
 }

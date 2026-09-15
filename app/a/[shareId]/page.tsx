@@ -39,7 +39,7 @@ export default async function SharedAnalysisPage({ params }: PageProps<'/a/[shar
         <Disclaimer />
       </div>
 
-      <main className="mt-10 border-t border-border pt-8">
+      <main id="main-content" className="mt-10 border-t border-border pt-8">
         <AnalysisView analysis={analysis} shareId={analysis.shareId} />
       </main>
     </div>
