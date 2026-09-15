@@ -7,6 +7,7 @@ import { comparisonSchema } from '@/lib/schema'
 import {
   ACCEPTED_MIME_TYPE,
   MAX_COMPARE_UPLOAD_BYTES,
+  assertAcceptableBodySize,
   assertAcceptableSize,
   assertIsPdf,
 } from '@/lib/upload'
@@ -31,6 +32,9 @@ const REQUESTS_PER_MINUTE = 3
 export async function POST(request: Request): Promise<Response> {
   try {
     await enforceRateLimit(clientKey(request, 'compare'), REQUESTS_PER_MINUTE)
+
+    // The body carries both files, so the whole-body budget is twice the per-file cap.
+    assertAcceptableBodySize(request, MAX_COMPARE_UPLOAD_BYTES * 2)
 
     const form = await request.formData()
     const [first, second] = [form.get('first'), form.get('second')]
