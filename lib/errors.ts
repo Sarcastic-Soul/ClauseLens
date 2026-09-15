@@ -5,7 +5,6 @@
  */
 export const ERROR_CODES = {
   INVALID_INPUT: 'INVALID_INPUT',
-  FORBIDDEN: 'FORBIDDEN',
   FILE_TOO_LARGE: 'FILE_TOO_LARGE',
   UNSUPPORTED_FILE_TYPE: 'UNSUPPORTED_FILE_TYPE',
   EMPTY_FILE: 'EMPTY_FILE',
@@ -22,7 +21,6 @@ export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]
 
 const STATUS: Record<ErrorCode, number> = {
   INVALID_INPUT: 400,
-  FORBIDDEN: 403,
   FILE_TOO_LARGE: 413,
   UNSUPPORTED_FILE_TYPE: 415,
   EMPTY_FILE: 400,
@@ -38,7 +36,6 @@ const STATUS: Record<ErrorCode, number> = {
 /** Shown to the user verbatim. Written to be actionable, not apologetic. */
 const USER_MESSAGE: Record<ErrorCode, string> = {
   INVALID_INPUT: 'That request was not valid. Check the form and try again.',
-  FORBIDDEN: 'That request was not accepted from this origin.',
   FILE_TOO_LARGE: 'That file is too large. Upload a PDF under 4 MB.',
   UNSUPPORTED_FILE_TYPE: 'Only PDF documents can be analysed.',
   EMPTY_FILE: 'That file is empty. Choose a PDF with content in it.',

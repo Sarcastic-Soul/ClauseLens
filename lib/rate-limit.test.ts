@@ -40,25 +40,12 @@ describe('enforceInMemory', () => {
 })
 
 describe('clientKey', () => {
-  beforeEach(() => {
-    process.env.GEMINI_API_KEY = 'test-gemini-key-not-used-anywhere-real'
-    resetRateLimits()
-  })
-
-  it('never puts the raw address in the key', () => {
+  it('uses the first address in x-forwarded-for', () => {
     const request = new Request('https://example.test', {
       headers: { 'x-forwarded-for': '203.0.113.7, 70.41.3.18' },
     })
 
-    expect(clientKey(request, 'analyze')).not.toContain('203.0.113.7')
-  })
-
-  it('is deterministic, so the same caller lands in the same bucket', () => {
-    const request = new Request('https://example.test', {
-      headers: { 'x-forwarded-for': '203.0.113.7' },
-    })
-
-    expect(clientKey(request, 'analyze')).toBe(clientKey(request, 'analyze'))
+    expect(clientKey(request, 'analyze')).toBe('analyze:203.0.113.7')
   })
 
   it('separates the same caller across routes', () => {
@@ -69,24 +56,20 @@ describe('clientKey', () => {
     expect(clientKey(request, 'ask')).not.toBe(clientKey(request, 'compare'))
   })
 
-  it('separates different callers on the same route', () => {
-    const a = new Request('https://example.test', { headers: { 'x-forwarded-for': '203.0.113.7' } })
-    const b = new Request('https://example.test', {
-      headers: { 'x-forwarded-for': '198.51.100.4' },
-    })
-
-    expect(clientKey(a, 'analyze')).not.toBe(clientKey(b, 'analyze'))
-  })
-
-  it('falls back to x-real-ip behind a proxy that sets only that, and prefers x-forwarded-for when both are present', () => {
-    const realOnly = new Request('https://example.test', {
+  it('falls back to x-real-ip behind a proxy that sets only that', () => {
+    const request = new Request('https://example.test', {
       headers: { 'x-real-ip': '198.51.100.4' },
     })
-    const both = new Request('https://example.test', {
-      headers: { 'x-forwarded-for': '198.51.100.4', 'x-real-ip': '203.0.113.7' },
+
+    expect(clientKey(request, 'analyze')).toBe('analyze:198.51.100.4')
+  })
+
+  it('prefers x-forwarded-for when both headers are present', () => {
+    const request = new Request('https://example.test', {
+      headers: { 'x-forwarded-for': '203.0.113.7', 'x-real-ip': '198.51.100.4' },
     })
 
-    expect(clientKey(realOnly, 'analyze')).toBe(clientKey(both, 'analyze'))
+    expect(clientKey(request, 'analyze')).toBe('analyze:203.0.113.7')
   })
 
   it('falls back to a shared bucket when neither header is present', () => {

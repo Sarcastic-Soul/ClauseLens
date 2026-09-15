@@ -2,7 +2,6 @@ import { env } from '@/lib/env'
 import { AppError, ERROR_CODES, toErrorResponse } from '@/lib/errors'
 import { generateStructured } from '@/lib/gemini'
 import { resolveGrounding } from '@/lib/grounding'
-import { assertSameOrigin } from '@/lib/origin-guard'
 import { CHECKLIST_SYSTEM_PROMPT, checklistUserPrompt } from '@/lib/prompts'
 import { clientKey, enforceRateLimit } from '@/lib/rate-limit'
 import { checklistRequestSchema, checklistSchema } from '@/lib/schema'
@@ -19,7 +18,6 @@ const REQUESTS_PER_MINUTE = 5
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    assertSameOrigin(request)
     await enforceRateLimit(clientKey(request, 'checklist'), REQUESTS_PER_MINUTE)
 
     const body = await request.json().catch(() => null)

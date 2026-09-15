@@ -1,8 +1,5 @@
 # ClauseLens
 
-[![CI](https://github.com/Sarcastic-Soul/ClauseLens/actions/workflows/ci.yml/badge.svg)](https://github.com/Sarcastic-Soul/ClauseLens/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/Sarcastic-Soul/ClauseLens/actions/workflows/codeql.yml/badge.svg)](https://github.com/Sarcastic-Soul/ClauseLens/actions/workflows/codeql.yml)
-
 **Understand what you are signing.** Upload a rental agreement, offer letter or contract and get
 it back clause by clause — in plain language, with the terms that could cost you flagged, every
 explanation quoted from the original, and the questions worth putting to a lawyer.
@@ -181,7 +178,6 @@ lib/
   clause-context.ts grounding block shared by client and server (pure)
   analysis-store.ts persistence, tolerant of an absent database
   rate-limit.ts     per-IP windows, counted in Postgres across instances
-  origin-guard.ts   rejects cross-site POSTs to the metered routes
   errors.ts         typed failures mapped to safe user-facing messages
 ```
 
@@ -216,12 +212,9 @@ the Node defaults.
 The uploaded PDF is never stored, secrets are server-side only, every input is validated with Zod
 before use, uploaded documents are treated as untrusted input to the model, follow-up calls answer
 only over clause context this server signed, the public model-calling routes are rate limited
-against a counter shared by every serverless instance and reject cross-site requests before touching
-that limit, rate-limit keys are HMACed rather than storing a visitor's address, Gemini calls carry a
-timeout so a hung upstream request cannot burn a whole route's time budget, and share pages carry
-`noindex` — reinforced by `app/robots.ts` — so an unguessable link stays unguessable. A CSP, HSTS,
-COOP and CORP are set on every response, and CI runs lint, typecheck, tests, a dependency audit and
-CodeQL on every push. The threat model is written up in [`SECURITY.md`](SECURITY.md).
+against a counter shared by every serverless instance, and share pages carry `noindex` so an
+unguessable link stays unguessable. The threat model is written up in
+[`SECURITY.md`](SECURITY.md).
 
 ## Accessibility
 

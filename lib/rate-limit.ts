@@ -1,9 +1,6 @@
-import { createHmac, hkdfSync } from 'node:crypto'
-
 import { sql } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
-import { env } from '@/lib/env'
 import { AppError, ERROR_CODES } from '@/lib/errors'
 
 /**
@@ -110,34 +107,11 @@ export async function enforceRateLimit(key: string, limit: number): Promise<void
  * limit is a worse experience than a private one, but letting unidentifiable
  * requests through unbounded would leave the metered API unprotected by exactly
  * the caller who declined to say who they are.
- *
- * The address itself is never stored: it is HMACed before it reaches the key,
- * so the `rate_limits` row — and any error message built from this key — holds
- * an opaque tag rather than a visitor's IP.
  */
 export function clientKey(request: Request, route: string): string {
   const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
   const real = request.headers.get('x-real-ip')?.trim()
-  const address = forwarded || real
-  return `${route}:${address ? hashCaller(address) : 'unidentified'}`
-}
-
-/**
- * Derived from the Gemini key rather than a secret of its own, so the address
- * is never recoverable from the key even though it is only ever compared to
- * itself: this table has no lookup that needs a fixed identifier back.
- */
-let cachedCallerKey: Buffer | null = null
-
-function callerSigningKey(): Buffer {
-  cachedCallerKey ??= Buffer.from(
-    hkdfSync('sha256', env().GEMINI_API_KEY, 'clauselens-rate-limit', 'caller-key-v1', 32),
-  )
-  return cachedCallerKey
-}
-
-function hashCaller(address: string): string {
-  return createHmac('sha256', callerSigningKey()).update(address, 'utf8').digest('hex')
+  return `${route}:${forwarded || real || 'unidentified'}`
 }
 
 /* -------------------------------------------------------------------------- */
@@ -163,8 +137,7 @@ export function enforceInMemory(key: string, limit: number, now = Date.now()): v
   existing.count += 1
 }
 
-/** Test seam: the window map and the derived caller key are module state. */
+/** Test seam: the window map is module state, so tests need a way to reset it. */
 export function resetRateLimits(): void {
   windows.clear()
-  cachedCallerKey = null
 }

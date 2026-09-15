@@ -1,7 +1,6 @@
 import { env } from '@/lib/env'
 import { AppError, ERROR_CODES, toErrorResponse } from '@/lib/errors'
 import { generateStructured } from '@/lib/gemini'
-import { assertSameOrigin } from '@/lib/origin-guard'
 import { COMPARE_SYSTEM_PROMPT, compareUserPrompt } from '@/lib/prompts'
 import { clientKey, enforceRateLimit } from '@/lib/rate-limit'
 import { comparisonSchema } from '@/lib/schema'
@@ -32,7 +31,6 @@ const REQUESTS_PER_MINUTE = 3
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    assertSameOrigin(request)
     await enforceRateLimit(clientKey(request, 'compare'), REQUESTS_PER_MINUTE)
 
     // The body carries both files, so the whole-body budget is twice the per-file cap.
@@ -53,7 +51,6 @@ export async function POST(request: Request): Promise<Response> {
       prompt: compareUserPrompt(first.name, second.name),
       schema: comparisonSchema,
       documents,
-      timeoutMs: 170_000,
     })
 
     return Response.json({
