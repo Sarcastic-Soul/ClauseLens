@@ -97,9 +97,13 @@ quote does not appear. Answers cite clause ids, and each citation in the UI is a
 it came from. Clause ids are assigned by the application after extraction, never by the model, so a
 citation can never point at an id the model invented.
 
-Uploaded documents are treated as untrusted input. Document text is fenced in a delimited block and
-the model is instructed to treat everything inside as data — a contract containing "ignore your
-instructions" is a realistic case for this problem statement, not a hypothetical one.
+Uploaded documents are treated as untrusted input. A contract containing "ignore your instructions"
+is a realistic case for this problem statement, not a hypothetical one. The document reaches the
+model one of two ways — attached as a PDF for analysis and comparison, or fenced in a delimited
+block for the calls grounded on already-extracted clause text — and the system prompt names both
+cases as data to describe rather than instructions to follow. Instructing the model about the fence
+alone would have left the routes that take the raw upload, the ones actually handling an untrusted
+file, uncovered.
 
 ## Running locally
 
@@ -141,8 +145,10 @@ One Next.js application on Vercel. No separate backend, no queue, no container.
 | UI | Tailwind CSS 4 | No component library to ship |
 | Validation | Zod | One schema validates requests, derives the model schema, and types the UI |
 
-**The database is never on the critical path for a fresh upload.** Analysis is returned first and
-saved afterwards, so a database failure costs the share link, not the result on screen.
+**A database failure costs the share link, not the analysis.** Saving is awaited before the
+response, because the share id it returns is part of that response and a link that resolves to
+nothing is worse than no link. Every failure path inside the save is swallowed instead: an
+unreachable database returns a null share id and the analysis renders without a share panel.
 
 **The uploaded PDF is never stored.** Only the extracted analysis and the clause text needed to
 ground follow-up questions are persisted.
@@ -205,8 +211,9 @@ the Node defaults.
 
 The uploaded PDF is never stored, secrets are server-side only, every input is validated with Zod
 before use, uploaded documents are treated as untrusted input to the model, follow-up calls answer
-only over clause context this server signed, and the public model-calling routes are rate limited
-against a counter shared by every serverless instance. The threat model is written up in
+only over clause context this server signed, the public model-calling routes are rate limited
+against a counter shared by every serverless instance, and share pages carry `noindex` so an
+unguessable link stays unguessable. The threat model is written up in
 [`SECURITY.md`](SECURITY.md).
 
 ## Accessibility
